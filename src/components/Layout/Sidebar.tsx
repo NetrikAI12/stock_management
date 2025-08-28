@@ -9,7 +9,8 @@ import {
   Building, 
   Settings,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Cylinder
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -26,6 +27,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'staff', 'viewer'] },
     { id: 'add-stock', label: 'Add Stock', icon: Plus, roles: ['admin', 'staff'] },
     { id: 'distribute-stock', label: 'Distribute Stock', icon: Minus, roles: ['admin', 'staff'] },
+    { id: 'cylinder-stock-product-wise', label: 'Cylinder Stock (Product)', icon: Cylinder, roles: ['admin', 'staff'] },
+    { id: 'cylinder-stock-customer-wise', label: 'Cylinder Stock (Customer)', icon: Cylinder, roles: ['admin', 'staff'] },
     { id: 'reports', label: 'Reports', icon: FileText, roles: ['admin', 'staff', 'viewer'] },
     { id: 'analytics', label: 'Analytics', icon: TrendingUp, roles: ['admin', 'staff', 'viewer'] },
     { id: 'low-stock', label: 'Low Stock Alerts', icon: AlertTriangle, roles: ['admin', 'staff', 'viewer'] },

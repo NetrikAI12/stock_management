@@ -1,3 +1,4 @@
+// App.tsx
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { StockProvider } from './contexts/StockContext';
@@ -9,6 +10,8 @@ import InventoryView from './components/Inventory/InventoryView';
 import AddStockForm from './components/Stock/AddStockForm';
 import DistributeStockForm from './components/Stock/DistributeStockForm';
 import ReportsView from './components/Reports/ReportsView';
+import CylinderStockProductWise from './components/Stock/CylinderStockProductWise';
+import CylinderStockCustomerWise from './components/Stock/CylinderStockCustomerWise';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -76,6 +79,10 @@ const AppContent: React.FC = () => {
             <p className="text-gray-500 dark:text-gray-400">Feature coming soon...</p>
           </div>
         );
+      case 'cylinder-stock-product-wise':
+        return <CylinderStockProductWise />;
+      case 'cylinder-stock-customer-wise':
+        return <CylinderStockCustomerWise />;
       default:
         return <Dashboard />;
     }
