@@ -7,6 +7,6 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
-  // 👇 Add this for GitHub Pages
-  base: "/Stock-Management/",
+  // 👇 Use this for Render / Netlify / Vercel
+  base: "./",
 });
