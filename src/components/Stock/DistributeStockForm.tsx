@@ -1,44 +1,73 @@
-import React, { useState } from 'react';
-import { Send, Search, AlertCircle, CheckCircle } from 'lucide-react';
+// components/DistributeStock/DistributeStockForm.tsx
+import React, { useState, useEffect } from 'react';
+import { Send, Search, AlertCircle } from 'lucide-react';
 import { useStock } from '../../contexts/StockContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { StockItem } from '../../types';
+import { supabase } from '../../supabaseClient';
 
 const DistributeStockForm: React.FC = () => {
-  const { stockItems, departments, addTransaction } = useStock();
+  const { addTransaction, departments } = useStock();
   const { user } = useAuth();
   
-  const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     quantity: 0,
+    transactionDate: new Date().toISOString().split('T')[0],
+    stockType: 'Cylinder',
     transferredTo: '',
     department: '',
-    reason: 'Internal Use',
+    reason: 'Sales',
     notes: '',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [products, setProducts] = useState<any[]>([]);
+  const [latestBalance, setLatestBalance] = useState<number>(0);
 
-  const reasons = [
-    'Internal Use',
-    'Sale',
-    'Department Transfer',
-    'Project Allocation',
-    'Maintenance',
-    'Return',
-    'Loss/Damage',
-    'Other'
-  ];
+  const reasons = ['Sales', 'OwnUse'];
 
-  const filteredItems = stockItems.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('productid', { ascending: true });
+    if (error) {
+      console.error('Error fetching products:', error.message);
+    } else {
+      setProducts(data || []);
+    }
+  };
+
+  const fetchLatestBalance = async (productId: number) => {
+    const { data, error } = await supabase
+      .from('stocktransactions')
+      .select('closingbalance')
+      .eq('productid', productId)
+      .order('transactiondate', { ascending: false })
+      .limit(1);
+    if (error) {
+      console.error('Error fetching latest balance:', error.message);
+    } else if (data && data.length > 0) {
+      setLatestBalance(data[0].closingbalance);
+    } else {
+      setLatestBalance(0);
+    }
+  };
+
+  const filteredItems = products.filter(item =>
+    item.productname.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.producttype.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleItemSelect = (item: StockItem) => {
+  const handleItemSelect = async (item: any) => {
     setSelectedItem(item);
-    setSearchQuery(item.name);
+    setSearchQuery(item.productname);
+    await fetchLatestBalance(item.productid);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -53,7 +82,7 @@ const DistributeStockForm: React.FC = () => {
     e.preventDefault();
     
     if (!selectedItem) {
-      alert('Please select an item');
+      alert('Please select a product');
       return;
     }
 
@@ -62,12 +91,12 @@ const DistributeStockForm: React.FC = () => {
       return;
     }
 
-    if (formData.quantity > selectedItem.quantity) {
+    if (formData.quantity > latestBalance) {
       alert('Quantity exceeds available stock');
       return;
     }
 
-    if (!formData.transferredTo.trim()) {
+    if (!formData.transferredTo.trim() && formData.reason === 'Sales') {
       alert('Please specify who/where the stock is being transferred to');
       return;
     }
@@ -75,12 +104,32 @@ const DistributeStockForm: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Determine if approval is needed (e.g., high value or quantity)
-      const needsApproval = formData.quantity > 50 || (formData.quantity * selectedItem.pricePerUnit) > 1000;
+      const needsApproval = formData.quantity > 50;
       
+      const transactionData = {
+        productid: selectedItem.productid,
+        transactiondate: formData.transactionDate,
+        stocktype: formData.stockType,
+        openingbalance: latestBalance,
+        purchase: 0,
+        sales: formData.reason === 'Sales' ? formData.quantity : 0,
+        ownuse: formData.reason === 'OwnUse' ? formData.quantity : 0,
+        physicalstock: latestBalance - formData.quantity,
+        discrepancyNote: formData.notes || null,
+        createdat: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('stocktransactions')
+        .insert(transactionData);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
       addTransaction({
-        itemId: selectedItem.id,
-        itemName: selectedItem.name,
+        productid: selectedItem.productid,
+        productname: selectedItem.productname,
         type: 'outbound',
         quantity: formData.quantity,
         userId: user?.id || 'unknown',
@@ -92,22 +141,26 @@ const DistributeStockForm: React.FC = () => {
         status: needsApproval ? 'pending' : 'completed',
       });
 
-      // Reset form
       setSelectedItem(null);
       setSearchQuery('');
       setFormData({
         quantity: 0,
+        transactionDate: new Date().toISOString().split('T')[0],
+        stockType: 'Cylinder',
         transferredTo: '',
         department: '',
-        reason: 'Internal Use',
+        reason: 'Sales',
         notes: '',
       });
+      setLatestBalance(0);
 
       alert(needsApproval 
         ? 'Distribution request submitted for approval'
         : 'Stock distributed successfully!'
       );
+      fetchProducts();
     } catch (error) {
+      console.error('Error distributing stock:', error);
       alert('Error distributing stock. Please try again.');
     }
     
@@ -122,11 +175,29 @@ const DistributeStockForm: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Item Selection */}
+          {/* Product Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select Item *
+              Select Product *
             </label>
+            {/* Dropdown for all products */}
+            <select
+              value={selectedItem ? selectedItem.productname : ''}
+              onChange={(e) => {
+                const selectedProduct = products.find(p => p.productname === e.target.value);
+                if (selectedProduct) handleItemSelect(selectedProduct);
+              }}
+              className="w-full p-3 mb-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value="">Select a product</option>
+              {products.map((item) => (
+                <option key={item.productid} value={item.productname}>
+                  {item.productname} ({item.producttype})
+                </option>
+              ))}
+            </select>
+
+            {/* Search Input */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -134,7 +205,7 @@ const DistributeStockForm: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                placeholder="Search for items to distribute..."
+                placeholder="Search for products to distribute..."
               />
             </div>
             
@@ -143,28 +214,23 @@ const DistributeStockForm: React.FC = () => {
                 {filteredItems.length > 0 ? (
                   filteredItems.map((item) => (
                     <button
-                      key={item.id}
+                      key={item.productid}
                       type="button"
                       onClick={() => handleItemSelect(item)}
                       className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-600 border-b border-gray-200 dark:border-gray-600 last:border-b-0"
                     >
                       <div className="flex justify-between items-center">
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{item.name}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{item.productname}</p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Available: {item.quantity} {item.unit} | Category: {item.category}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
-                            ${item.pricePerUnit}/unit
+                            Type: {item.producttype} | Unit: {item.defaultunit}
                           </p>
                         </div>
                       </div>
                     </button>
                   ))
                 ) : (
-                  <p className="p-3 text-gray-500 dark:text-gray-400">No items found</p>
+                  <p className="p-3 text-gray-500 dark:text-gray-400">No products found</p>
                 )}
               </div>
             )}
@@ -173,10 +239,9 @@ const DistributeStockForm: React.FC = () => {
               <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium text-blue-900 dark:text-blue-100">{selectedItem.name}</h4>
+                    <h4 className="font-medium text-blue-900 dark:text-blue-100">{selectedItem.productname}</h4>
                     <p className="text-sm text-blue-700 dark:text-blue-300">
-                      Available: {selectedItem.quantity} {selectedItem.unit} | 
-                      Unit Price: ${selectedItem.pricePerUnit}
+                      Type: {selectedItem.producttype} | Unit: {selectedItem.defaultunit} | Available: {latestBalance}
                     </p>
                   </div>
                   <button
@@ -184,6 +249,7 @@ const DistributeStockForm: React.FC = () => {
                     onClick={() => {
                       setSelectedItem(null);
                       setSearchQuery('');
+                      setLatestBalance(0);
                     }}
                     className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
                   >
@@ -208,13 +274,13 @@ const DistributeStockForm: React.FC = () => {
                     value={formData.quantity}
                     onChange={handleInputChange}
                     min="1"
-                    max={selectedItem.quantity}
+                    max={latestBalance}
                     required
                     className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="0"
                   />
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Maximum available: {selectedItem.quantity} {selectedItem.unit}
+                    Maximum available: {latestBalance} {selectedItem.defaultunit}
                   </p>
                 </div>
 
@@ -236,18 +302,50 @@ const DistributeStockForm: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Transferred To *
+                    Transaction Date *
                   </label>
                   <input
-                    type="text"
-                    name="transferredTo"
-                    value={formData.transferredTo}
+                    type="date"
+                    name="transactionDate"
+                    value={formData.transactionDate}
                     onChange={handleInputChange}
                     required
                     className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                    placeholder="Person name, employee ID, or external entity"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Stock Type *
+                  </label>
+                  <select
+                    name="stockType"
+                    value={formData.stockType}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="Cylinder">Cylinder</option>
+                    <option value="Spare">Spare</option>
+                  </select>
+                </div>
+
+                {formData.reason === 'Sales' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Transferred To *
+                    </label>
+                    <input
+                      type="text"
+                      name="transferredTo"
+                      value={formData.transferredTo}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                      placeholder="Customer name or entity"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -269,7 +367,7 @@ const DistributeStockForm: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Additional Notes
+                  Discrepancy Notes
                 </label>
                 <textarea
                   name="notes"
@@ -277,7 +375,7 @@ const DistributeStockForm: React.FC = () => {
                   onChange={handleInputChange}
                   rows={3}
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Any additional information about this distribution..."
+                  placeholder="Any discrepancies or additional information..."
                 />
               </div>
 
@@ -287,43 +385,27 @@ const DistributeStockForm: React.FC = () => {
                   <h4 className="font-medium text-gray-900 dark:text-white mb-3">Distribution Summary</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600 dark:text-gray-400">Item:</span>
-                      <span className="ml-2 font-medium text-gray-900 dark:text-white">{selectedItem.name}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Product:</span>
+                      <span className="ml-2 font-medium text-gray-900 dark:text-white">{selectedItem.productname}</span>
                     </div>
                     <div>
                       <span className="text-gray-600 dark:text-gray-400">Quantity:</span>
-                      <span className="ml-2 font-medium text-gray-900 dark:text-white">{formData.quantity} {selectedItem.unit}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Value:</span>
-                      <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                        ${(formData.quantity * selectedItem.pricePerUnit).toFixed(2)}
-                      </span>
+                      <span className="ml-2 font-medium text-gray-900 dark:text-white">{formData.quantity} {selectedItem.defaultunit}</span>
                     </div>
                     <div>
                       <span className="text-gray-600 dark:text-gray-400">Remaining Stock:</span>
                       <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                        {selectedItem.quantity - formData.quantity} {selectedItem.unit}
+                        {latestBalance - formData.quantity} {selectedItem.defaultunit}
                       </span>
                     </div>
                   </div>
 
                   {/* Approval Warning */}
-                  {(formData.quantity > 50 || (formData.quantity * selectedItem.pricePerUnit) > 1000) && (
+                  {(formData.quantity > 50) && (
                     <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg flex items-center">
                       <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mr-2" />
                       <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                        This distribution requires admin approval due to high quantity or value.
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Low Stock Warning */}
-                  {(selectedItem.quantity - formData.quantity) <= selectedItem.threshold && (
-                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg flex items-center">
-                      <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 mr-2" />
-                      <span className="text-sm text-red-800 dark:text-red-200">
-                        Warning: This will bring stock below the threshold ({selectedItem.threshold} {selectedItem.unit}).
+                        This distribution requires admin approval due to high quantity.
                       </span>
                     </div>
                   )}

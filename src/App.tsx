@@ -1,7 +1,7 @@
 // App.tsx
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { StockProvider } from './contexts/StockContext';
+import { StockProvider, useStock } from './contexts/StockContext';
 import LoginForm from './components/Auth/LoginForm';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
@@ -12,9 +12,13 @@ import DistributeStockForm from './components/Stock/DistributeStockForm';
 import ReportsView from './components/Reports/ReportsView';
 import CylinderStockProductWise from './components/Stock/CylinderStockProductWise';
 import CylinderStockCustomerWise from './components/Stock/CylinderStockCustomerWise';
+import ProductsView from './components/Products/ProductsView';
+import CustomersView from './components/Customers/CustomersView';
+import LowStockAlerts from './components/Dashboard/LowStockAlerts';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
+  const { loading: stockLoading, getLowStockItems } = useStock();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
@@ -30,7 +34,7 @@ const AppContent: React.FC = () => {
     }
   }, [darkMode]);
 
-  if (isLoading) {
+  if (isLoading || stockLoading) {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -54,35 +58,16 @@ const AppContent: React.FC = () => {
         return <DistributeStockForm />;
       case 'reports':
         return <ReportsView />;
-      case 'analytics':
-        return <ReportsView />;
-      case 'low-stock':
-        return <InventoryView />;
-      case 'suppliers':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Supplier Management</h2>
-            <p className="text-gray-500 dark:text-gray-400">Feature coming soon...</p>
-          </div>
-        );
-      case 'users':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">User Management</h2>
-            <p className="text-gray-500 dark:text-gray-400">Feature coming soon...</p>
-          </div>
-        );
-      case 'settings':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Settings</h2>
-            <p className="text-gray-500 dark:text-gray-400">Feature coming soon...</p>
-          </div>
-        );
       case 'cylinder-stock-product-wise':
         return <CylinderStockProductWise />;
       case 'cylinder-stock-customer-wise':
         return <CylinderStockCustomerWise />;
+      case 'products':
+        return <ProductsView />;
+      case 'customers':
+        return <CustomersView />;
+      case 'low-stock':
+        return <LowStockAlerts items={getLowStockItems()} />;
       default:
         return <Dashboard />;
     }

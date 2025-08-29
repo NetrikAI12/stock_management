@@ -517,13 +517,14 @@ const CylinderStockProductWise: React.FC = () => {
       {/* Display Table */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Existing Cylinder Stock</h3>
+        
         <div className="overflow-x-auto relative">
-          <button
-            onClick={() => setShowGraph(true)}
-            className="absolute top-2 right-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            Show Graph
-          </button>
+             <button
+                onClick={() => setShowGraph(true)}
+                className="ml-auto px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700"
+            >
+                Show Graph
+            </button>
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
@@ -531,10 +532,10 @@ const CylinderStockProductWise: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Transaction Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Opening Balance</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Received</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Delivered</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sold</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Converted</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cylinders Received</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cylinders Delivered</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cylinders Sold</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cylinders Converted</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Physical Stock</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
               </tr>
@@ -584,7 +585,7 @@ const CylinderStockProductWise: React.FC = () => {
             <select
               value={selectedField}
               onChange={(e) => setSelectedField(e.target.value)}
-              className="absolute top-4 left-4 p-2 border border-gray-300 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+              className="absolute bottom-4 right-4 p-2 border border-gray-300 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             >
               <option value="openingbalance">Opening Balance</option>
               <option value="cylindersreceived">Cylinders Received</option>

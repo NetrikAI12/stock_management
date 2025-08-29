@@ -1,19 +1,20 @@
+// contexts/StockContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { StockItem, Transaction, Supplier, Department, StockSummary } from '../types';
+import { StockItem, Transaction, SalesSummary, LowStockItem } from '../types';
 
 interface StockContextType {
   stockItems: StockItem[];
   transactions: Transaction[];
-  suppliers: Supplier[];
-  departments: Department[];
-  addStockItem: (item: Omit<StockItem, 'id' | 'dateAdded' | 'lastUpdated'>) => void;
-  updateStockItem: (id: string, updates: Partial<StockItem>) => void;
-  deleteStockItem: (id: string) => void;
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp'>) => void;
-  getStockSummary: () => StockSummary;
-  getLowStockItems: () => StockItem[];
+  addStockItem: (item: Omit<StockItem, 'id' | 'lastUpdated' | 'dateAdded'>) => void;
+  updateStockItem: (id: number, updates: Partial<StockItem>) => void;
+  deleteStockItem: (id: number) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp' | 'createdat'>) => void;
+  getSalesSummary: () => SalesSummary;
+  getLowStockItems: () => LowStockItem[];
   searchItems: (query: string) => StockItem[];
+  loading: boolean;
+  error: string | null;
 }
 
 const StockContext = createContext<StockContextType | null>(null);
@@ -26,260 +27,166 @@ export const useStock = () => {
   return context;
 };
 
-// Mock initial data for stock items, transactions, and departments
-const initialStockItems: StockItem[] = [
-  {
-    id: '123e4567-e89b-12d3-a456-426614174004',
-    name: 'Laptop Dell XPS 13',
-    quantity: 45,
-    unit: 'pieces',
-    specifications: 'Intel i7, 16GB RAM, 512GB SSD, 13.3" Display',
-    category: 'Electronics',
-    pricePerUnit: 1299.99,
-    supplierId: '123e4567-e89b-12d3-a456-426614174000',
-    addedBy: 'admin',
-    dateAdded: '2024-01-15',
-    lastUpdated: '2024-01-20',
-    threshold: 10,
-    barcode: '1234567890123',
-    imageUrl: 'https://images.pexels.com/photos/205421/pexels-photo-205421.jpeg',
-  },
-  {
-    id: '123e4567-e89b-12d3-a456-426614174005',
-    name: 'Office Chair Ergonomic',
-    quantity: 28,
-    unit: 'pieces',
-    specifications: 'Adjustable height, lumbar support, breathable mesh',
-    category: 'Furniture',
-    pricePerUnit: 299.99,
-    supplierId: '123e4567-e89b-12d3-a456-426614174001',
-    addedBy: 'staff',
-    dateAdded: '2024-01-10',
-    lastUpdated: '2024-01-18',
-    threshold: 5,
-  },
-  {
-    id: '123e4567-e89b-12d3-a456-426614174006',
-    name: 'Printer Paper A4',
-    quantity: 8,
-    unit: 'reams',
-    specifications: '80gsm, 500 sheets per ream, white',
-    category: 'Consumables',
-    pricePerUnit: 12.99,
-    supplierId: '123e4567-e89b-12d3-a456-426614174002',
-    addedBy: 'staff',
-    dateAdded: '2024-01-12',
-    lastUpdated: '2024-01-22',
-    threshold: 15,
-  },
-  {
-    id: '123e4567-e89b-12d3-a456-426614174007',
-    name: 'Wireless Mouse Logitech',
-    quantity: 67,
-    unit: 'pieces',
-    specifications: 'Optical sensor, 2.4GHz wireless, 3 buttons',
-    category: 'Electronics',
-    pricePerUnit: 49.99,
-    supplierId: '123e4567-e89b-12d3-a456-426614174000',
-    addedBy: 'admin',
-    dateAdded: '2024-01-08',
-    lastUpdated: '2024-01-19',
-    threshold: 20,
-  },
-  {
-    id: '123e4567-e89b-12d3-a456-426614174008',
-    name: 'Coffee Beans Premium',
-    quantity: 15,
-    unit: 'kg',
-    specifications: 'Arabica beans, medium roast, organic certified',
-    category: 'Consumables',
-    pricePerUnit: 24.99,
-    supplierId: '123e4567-e89b-12d3-a456-426614174003',
-    addedBy: 'staff',
-    dateAdded: '2024-01-14',
-    lastUpdated: '2024-01-21',
-    threshold: 10,
-  }
-];
-
-const initialTransactions: Transaction[] = [
-  {
-    id: '123e4567-e89b-12d3-a456-426614174009',
-    itemId: '123e4567-e89b-12d3-a456-426614174004',
-    itemName: 'Laptop Dell XPS 13',
-    type: 'inbound',
-    quantity: 50,
-    userId: '123e4567-e89b-12d3-a456-426614174010',
-    userName: 'John Admin',
-    timestamp: '2024-01-15T10:30:00Z',
-    supplierName: 'TechCorp Solutions',
-    invoiceNumber: 'INV-2024-001',
-    cost: 64999.50,
-    status: 'completed',
-  },
-  {
-    id: '123e4567-e89b-12d3-a456-426614174011',
-    itemId: '123e4567-e89b-12d3-a456-426614174004',
-    itemName: 'Laptop Dell XPS 13',
-    type: 'outbound',
-    quantity: 5,
-    userId: '123e4567-e89b-12d3-a456-426614174012',
-    userName: 'Jane Staff',
-    timestamp: '2024-01-20T14:15:00Z',
-    reason: 'Department Transfer',
-    transferredTo: 'Sales Department',
-    department: 'Sales',
-    status: 'completed',
-  },
-  {
-    id: '123e4567-e89b-12d3-a456-426614174013',
-    itemId: '123e4567-e89b-12d3-a456-426614174006',
-    itemName: 'Printer Paper A4',
-    type: 'outbound',
-    quantity: 12,
-    userId: '123e4567-e89b-12d3-a456-426614174012',
-    userName: 'Jane Staff',
-    timestamp: '2024-01-22T09:45:00Z',
-    reason: 'Office Use',
-    transferredTo: 'HR Department',
-    department: 'HR',
-    status: 'completed',
-  }
-];
-
-const initialDepartments: Department[] = [
-  { id: '123e4567-e89b-12d3-a456-426614174014', name: 'Sales', head: 'Tom Anderson', location: 'Floor 2, East Wing' },
-  { id: '123e4567-e89b-12d3-a456-426614174015', name: 'HR', head: 'Emma Thompson', location: 'Floor 1, West Wing' },
-  { id: '123e4567-e89b-12d3-a456-426614174016', name: 'IT', head: 'Alex Rodriguez', location: 'Floor 3, North Wing' },
-  { id: '123e4567-e89b-12d3-a456-426614174017', name: 'Finance', head: 'Maria Davis', location: 'Floor 1, East Wing' },
-];
-
 export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [departments] = useState<Department[]>(initialDepartments);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch suppliers from Supabase on component mount
   useEffect(() => {
-    const fetchSuppliers = async () => {
-      const { data, error } = await supabase.from('suppliers').select('*');
-      if (error) {
-        console.error('Error fetching suppliers:', error);
-      } else {
-        setSuppliers(data);
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        console.log('Fetching data from Supabase...');
+        const { data: sales, error: salesError } = await supabase
+          .from('salesreports')
+          .select(`
+            salesreportid,
+            productid,
+            reportdate,
+            closingcylinders,
+            closingunits,
+            salecylinders,
+            salesunits,
+            products(productname, producttype)
+          `);
+        if (salesError) throw new Error(`Error fetching sales: ${salesError.message}`);
+        console.log('Sales data fetched:', sales);
+        const items: StockItem[] = sales?.map((report: any) => ({
+          id: report.salesreportid,
+          name: report.products?.productname || `Product ${report.productid}`,
+          quantity: report.closingcylinders || 0,
+          unit: 'cyl',
+          specifications: report.products?.producttype || 'Cylinder',
+          category: report.products?.producttype || 'Cylinder',
+          pricePerUnit: 10.00,
+          supplierId: null,
+          addedBy: 'system',
+          dateAdded: report.reportdate || new Date().toISOString(),
+          lastUpdated: report.reportdate || new Date().toISOString(),
+          threshold: 5,
+          barcode: null,
+          imageUrl: null,
+          productId: report.productid,
+        })) || [];
+        setStockItems(items);
+
+        const { data: trans, error: transError } = await supabase
+          .from('salesreports')
+          .select(`
+            salesreportid,
+            productid,
+            reportdate,
+            salecylinders,
+            salesunits,
+            products(productname)
+          `)
+          .order('reportdate', { ascending: false })
+          .limit(10);
+        if (transError) throw new Error(`Error fetching transactions: ${transError.message}`);
+        console.log('Transaction data fetched:', trans);
+        const transData: Transaction[] = trans?.map((t: any) => ({
+          id: t.salesreportid,
+          timestamp: t.reportdate,
+          productid: t.productid,
+          productname: t.products?.productname || `Product ${t.productid}`,
+          type: 'outbound',
+          quantity: t.salecylinders || 0,
+          userId: 'system',
+          userName: 'System User',
+          reason: 'Sale',
+          transferredTo: 'Customer',
+          department: 'Sales',
+          notes: 'Standard sale transaction',
+          status: 'completed',
+          createdat: t.reportdate || new Date().toISOString(),
+        })) || [];
+        setTransactions(transData);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      } finally {
+        setLoading(false);
+        console.log('Data fetch completed. Loading:', loading, 'Error:', error);
       }
     };
-    fetchSuppliers();
+    fetchData();
   }, []);
 
-  useEffect(() => {
-    // Load data from localStorage or use initial data
-    const storedItems = localStorage.getItem('stockItems');
-    const storedTransactions = localStorage.getItem('transactions');
-    
-    if (storedItems) {
-      setStockItems(JSON.parse(storedItems));
-    } else {
-      setStockItems(initialStockItems);
-    }
-    
-    if (storedTransactions) {
-      setTransactions(JSON.parse(storedTransactions));
-    } else {
-      setTransactions(initialTransactions);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('stockItems', JSON.stringify(stockItems));
-  }, [stockItems]);
-
-  useEffect(() => {
-    localStorage.setItem('transactions', JSON.stringify(transactions));
-  }, [transactions]);
-
-  const addStockItem = (item: Omit<StockItem, 'id' | 'dateAdded' | 'lastUpdated'>) => {
+  const addStockItem = (item: Omit<StockItem, 'id' | 'lastUpdated' | 'dateAdded'>) => {
     const newItem: StockItem = {
       ...item,
-      id: crypto.randomUUID(),
+      id: Math.floor(Math.random() * 1000000),
       dateAdded: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
     };
     setStockItems(prev => [...prev, newItem]);
   };
 
-  const updateStockItem = (id: string, updates: Partial<StockItem>) => {
+  const updateStockItem = (id: number, updates: Partial<StockItem>) => {
     setStockItems(prev => prev.map(item => 
-      item.id === id 
-        ? { ...item, ...updates, lastUpdated: new Date().toISOString() }
-        : item
+      item.id === id ? { ...item, ...updates, lastUpdated: new Date().toISOString() } : item
     ));
   };
 
-  const deleteStockItem = (id: string) => {
+  const deleteStockItem = (id: number) => {
     setStockItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const addTransaction = (transaction: Omit<Transaction, 'id' | 'timestamp'>) => {
+  const addTransaction = (transaction: Omit<Transaction, 'id' | 'timestamp' | 'createdat'>) => {
     const newTransaction: Transaction = {
       ...transaction,
-      id: crypto.randomUUID(),
+      id: Math.floor(Math.random() * 1000000),
       timestamp: new Date().toISOString(),
+      createdat: new Date().toISOString(),
     };
-    
     setTransactions(prev => [...prev, newTransaction]);
-    
-    // Update stock quantity
-    if (transaction.status === 'completed') {
-      setStockItems(prev => prev.map(item => {
-        if (item.id === transaction.itemId) {
-          const quantityChange = transaction.type === 'inbound' 
-            ? transaction.quantity 
-            : -transaction.quantity;
-          return {
-            ...item,
-            quantity: Math.max(0, item.quantity + quantityChange),
-            lastUpdated: new Date().toISOString(),
-          };
-        }
-        return item;
-      }));
-    }
   };
 
-  const getStockSummary = (): StockSummary => {
-    const totalItems = stockItems.length;
-    const totalValue = stockItems.reduce((sum, item) => sum + (item.quantity * item.pricePerUnit), 0);
-    const lowStockItems = stockItems.filter(item => item.quantity <= item.threshold).length;
-    const recentTransactions = transactions.filter(
-      t => new Date(t.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    ).length;
+  const getSalesSummary = (): SalesSummary => {
+    const totalCylinders = stockItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalSalesValue = transactions.reduce((sum, t) => sum + (t.quantity * 10), 0);
+    const lowStockCylinders = stockItems.filter(item => item.quantity <= item.threshold).length;
+    const recentSales = transactions.filter(t => 
+      new Date(t.timestamp || '').getTime() > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime()
+    ).reduce((sum, t) => sum + t.quantity, 0);
     
-    const categorySummary = stockItems.reduce((acc, item) => {
-      acc[item.category] = (acc[item.category] || 0) + item.quantity;
-      return acc;
-    }, {} as { [key: string]: number });
+    const productSummary = Array.from(
+      new Set(stockItems.map(item => item.name))
+    ).map(name => ({
+      name,
+      value: stockItems.find(item => item.name === name)?.quantity || 0,
+    }));
 
     return {
-      totalItems,
-      totalValue,
-      lowStockItems,
-      recentTransactions,
-      categorySummary,
+      totalItems: totalCylinders,
+      totalValue: totalSalesValue,
+      lowStockItems: lowStockCylinders,
+      recentTransactions: recentSales,
+      categorySummary: {},
+      totalCylinders,
+      lowStockCylinders,
+      productSummary,
     };
   };
 
-  const getLowStockItems = (): StockItem[] => {
-    return stockItems.filter(item => item.quantity <= item.threshold);
+  const getLowStockItems = (): LowStockItem[] => {
+    return stockItems
+      .filter(item => item.quantity <= item.threshold)
+      .map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        threshold: item.threshold,
+      }));
   };
 
   const searchItems = (query: string): StockItem[] => {
     const lowercaseQuery = query.toLowerCase();
     return stockItems.filter(item =>
       item.name.toLowerCase().includes(lowercaseQuery) ||
-      item.category.toLowerCase().includes(lowercaseQuery) ||
-      item.specifications.toLowerCase().includes(lowercaseQuery)
+      item.category.toLowerCase().includes(lowercaseQuery)
     );
   };
 
@@ -287,15 +194,15 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <StockContext.Provider value={{
       stockItems,
       transactions,
-      suppliers,
-      departments,
       addStockItem,
       updateStockItem,
       deleteStockItem,
       addTransaction,
-      getStockSummary,
+      getSalesSummary,
       getLowStockItems,
       searchItems,
+      loading,
+      error,
     }}>
       {children}
     </StockContext.Provider>

@@ -597,11 +597,11 @@ const CylinderStockCustomerWise: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Existing Customer Cylinder Stock</h3>
         <div className="overflow-x-auto relative">
           <button
-            onClick={() => setShowGraph(true)}
-            className="absolute top-2 right-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            Show Graph
-          </button>
+                onClick={() => setShowGraph(true)}
+                className="ml-auto px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700"
+            >
+                Show Graph
+            </button>
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
@@ -668,7 +668,7 @@ const CylinderStockCustomerWise: React.FC = () => {
             <select
               value={selectedField}
               onChange={(e) => setSelectedField(e.target.value)}
-              className="absolute top-4 left-4 p-2 border border-gray-300 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+              className="absolute bottom-4 right-4 p-2 border border-gray-300 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
             >
               <option value="openingfull">Opening Full</option>
               <option value="openingempty">Opening Empty</option>

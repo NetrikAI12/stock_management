@@ -1,3 +1,4 @@
+// components/InventoryTable/InventoryTable.tsx
 import React, { useState } from 'react';
 import { Edit, Trash2, Package, AlertTriangle, CheckCircle, Search } from 'lucide-react';
 import { useStock } from '../../contexts/StockContext';
@@ -6,9 +7,11 @@ import { StockItem } from '../../types';
 
 interface InventoryTableProps {
   searchQuery: string;
+  dateRange: { start: string; end: string };
+  selectedProduct: number | 'all';
 }
 
-const InventoryTable: React.FC<InventoryTableProps> = ({ searchQuery }) => {
+const InventoryTable: React.FC<InventoryTableProps> = ({ searchQuery, dateRange, selectedProduct }) => {
   const { stockItems, searchItems, deleteStockItem } = useStock();
   const { user } = useAuth();
   const [sortField, setSortField] = useState<keyof StockItem>('name');
@@ -16,7 +19,14 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchQuery }) => {
 
   const canEdit = user?.role === 'admin' || user?.role === 'staff';
 
-  const filteredItems = searchQuery ? searchItems(searchQuery) : stockItems;
+  const filteredItems = searchQuery 
+    ? searchItems(searchQuery)
+    : stockItems.filter((item: StockItem) => {
+        const itemDate = new Date(item.lastUpdated).toISOString().split('T')[0];
+        const isInDateRange = itemDate >= dateRange.start && itemDate <= dateRange.end;
+        const isProductMatch = selectedProduct === 'all' || item.productId === selectedProduct;
+        return isInDateRange && isProductMatch;
+      });
 
   const sortedItems = [...filteredItems].sort((a, b) => {
     const aVal = a[sortField];
@@ -95,13 +105,13 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchQuery }) => {
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 onClick={() => handleSort('category')}
               >
-                Category
+                Type
               </th>
               <th 
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
                 onClick={() => handleSort('quantity')}
               >
-                Quantity
+                Cylinders
                 {sortField === 'quantity' && (
                   <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                 )}
@@ -166,7 +176,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({ searchQuery }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
-                      {item.quantity} {item.unit}
+                      {item.quantity} cyl
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       Threshold: {item.threshold}
