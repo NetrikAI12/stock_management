@@ -2,24 +2,28 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Package } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
-import { useStock } from '../../contexts/StockContext';
 
 const LowStockAlerts: React.FC = () => {
-  const { departments } = useStock(); // Assuming departments are available in context
   const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLowStockItems();
   }, []);
 
   const fetchLowStockItems = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      // Fetch latest stock levels from StockTransactions joined with Products
-      const { data, error } = await supabase
+      // Fetch all stock levels from stocktransactions joined with products
+      const { data, error: fetchError } = await supabase
         .from('stocktransactions')
         .select(`
           productid,
-          closingbalance,
+          transactiondate,
+          physicalstock,
+          discrepancy_note,
           products (
             productid,
             productname,
@@ -27,26 +31,32 @@ const LowStockAlerts: React.FC = () => {
             defaultunit
           )
         `)
-        .order('transactiondate', { ascending: false })
-        .limit(1); // Get the latest transaction per product
+        .order('productid, transactiondate', { ascending: [true, false] }); // Order by productid, then latest transaction
 
-      if (error) {
-        console.error('Error fetching stock transactions:', error.message);
-        return;
+      if (fetchError) {
+        throw new Error(`Error fetching stock transactions: ${fetchError.message}`);
       }
 
       if (data && data.length > 0) {
-        // Group by productid to get the latest balance
+        // Group by productid and get the latest physicalstock
         const latestStocks = data.reduce((acc: any[], curr: any) => {
           const existing = acc.find((item) => item.productid === curr.productid);
           if (!existing) {
             acc.push({
               id: curr.productid,
               name: curr.products.productname,
-              quantity: curr.closingbalance,
+              type: curr.products.producttype,
+              quantity: curr.physicalstock,
               unit: curr.products.defaultunit,
-              threshold: 10, // Default threshold; add to Products table if needed
+              threshold: 10, // Match this with Dashboard's threshold if different
+              lastUpdated: curr.transactiondate,
+              discrepancyNote: curr.discrepancy_note || 'None',
             });
+          } else if (new Date(existing.lastUpdated) < new Date(curr.transactiondate)) {
+            // Update if a newer transaction is found for the same productid
+            existing.quantity = curr.physicalstock;
+            existing.lastUpdated = curr.transactiondate;
+            existing.discrepancyNote = curr.discrepancy_note || 'None';
           }
           return acc;
         }, []);
@@ -54,11 +64,37 @@ const LowStockAlerts: React.FC = () => {
         // Filter items below threshold
         const lowStock = latestStocks.filter((item) => item.quantity <= item.threshold);
         setLowStockItems(lowStock);
+        console.log('Low stock items:', lowStock); // Debug log
       }
-    } catch (error) {
-      console.error('Error in fetchLowStockItems:', error);
+    } catch (err) {
+      console.error('Error in fetchLowStockItems:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32 text-gray-600 dark:text-gray-400">
+        <div className="text-center">
+          <Package className="h-8 w-8 mx-auto mb-2 animate-spin" />
+          <p>Loading stock data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-32 text-red-600 dark:text-red-400">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+          <p>Error: {error}. Please try again later.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (lowStockItems.length === 0) {
     return (
@@ -85,7 +121,13 @@ const LowStockAlerts: React.FC = () => {
                 {item.name}
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Current: {item.quantity} {item.unit} (Threshold: {item.threshold})
+                Type: {item.type} | Current: {item.quantity} {item.unit} (Threshold: {item.threshold})
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Last Updated: {new Date(item.lastUpdated).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Discrepancy Note: {item.discrepancyNote}
               </p>
             </div>
           </div>

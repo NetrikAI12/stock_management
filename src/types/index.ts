@@ -1,6 +1,6 @@
 // ../types.ts
 export interface StockItem {
-  id: number; // Changed to number to match salesreportid
+  id: number; // Matches salesreportid from Supabase
   name: string;
   quantity: number;
   unit: string;
@@ -12,9 +12,9 @@ export interface StockItem {
   dateAdded: string;
   lastUpdated: string;
   threshold: number;
-  barcode?: string;
-  imageUrl?: string;
-  productId?: number; // Added to link with products table
+  barcode?: string | null;
+  imageUrl?: string | null;
+  productId?: number; // Links with products table
 }
 
 export interface Transaction {
@@ -28,7 +28,7 @@ export interface Transaction {
   userName: string;
   reason: string;
   transferredTo: string;
-  department: string;
+  department: string; // Kept as optional default 'N/A'
   notes: string;
   status: string;
   createdat?: string; // Optional if handled by Supabase
@@ -45,23 +45,21 @@ export interface Supplier {
   onTimeDelivery: number;
 }
 
-export interface Department {
-  id: string;
-  name: string;
-  head: string;
-  location: string;
-}
+// Removed Department interface since not needed
 
-// Added for Sales Summary
+// Updated for Sales Summary to match StockContext usage
 export interface SalesSummary {
-  totalCylinders: number;
-  totalSalesValue: number;
-  lowStockCylinders: number;
-  recentSales: number;
-  productSummary: { name: string; value: number }[];
+  totalItems: number; // Total number of items (cylinders in this case)
+  totalValue: number; // Total sales value
+  lowStockItems: number; // Number of items below threshold
+  recentTransactions: number; // Sales in the last 7 days
+  categorySummary: Record<string, number>; // Summary by category (currently empty)
+  totalCylinders: number; // Total cylinders
+  lowStockCylinders: number; // Number of low stock cylinders
+  productSummary: { name: string; value: number }[]; // Summary by product
 }
 
-// Added for Low Stock Items
+// Updated for Low Stock Items
 export interface LowStockItem {
   id: number;
   name: string;

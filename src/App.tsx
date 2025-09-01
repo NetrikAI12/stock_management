@@ -15,6 +15,7 @@ import CylinderStockCustomerWise from './components/Stock/CylinderStockCustomerW
 import ProductsView from './components/Products/ProductsView';
 import CustomersView from './components/Customers/CustomersView';
 import LowStockAlerts from './components/Dashboard/LowStockAlerts';
+import SettingsView from './components/Settings/SettingsView';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -68,6 +69,8 @@ const AppContent: React.FC = () => {
         return <CustomersView />;
       case 'low-stock':
         return <LowStockAlerts items={getLowStockItems()} />;
+      case 'settings':
+        return<SettingsView/>
       default:
         return <Dashboard />;
     }

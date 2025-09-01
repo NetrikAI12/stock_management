@@ -13,11 +13,12 @@ interface StockContextType {
   getSalesSummary: () => SalesSummary;
   getLowStockItems: () => LowStockItem[];
   searchItems: (query: string) => StockItem[];
+  fetchStockData: () => Promise<void>;
   loading: boolean;
   error: string | null;
 }
 
-const StockContext = createContext<StockContextType | null>(null);
+export const StockContext = createContext<StockContextType | null>(null);
 
 export const useStock = () => {
   const context = useContext(StockContext);
@@ -33,85 +34,84 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        console.log('Fetching data from Supabase...');
-        const { data: sales, error: salesError } = await supabase
-          .from('salesreports')
-          .select(`
-            salesreportid,
-            productid,
-            reportdate,
-            closingcylinders,
-            closingunits,
-            salecylinders,
-            salesunits,
-            products(productname, producttype)
-          `);
-        if (salesError) throw new Error(`Error fetching sales: ${salesError.message}`);
-        console.log('Sales data fetched:', sales);
-        const items: StockItem[] = sales?.map((report: any) => ({
-          id: report.salesreportid,
-          name: report.products?.productname || `Product ${report.productid}`,
-          quantity: report.closingcylinders || 0,
-          unit: 'cyl',
-          specifications: report.products?.producttype || 'Cylinder',
-          category: report.products?.producttype || 'Cylinder',
-          pricePerUnit: 10.00,
-          supplierId: null,
-          addedBy: 'system',
-          dateAdded: report.reportdate || new Date().toISOString(),
-          lastUpdated: report.reportdate || new Date().toISOString(),
-          threshold: 5,
-          barcode: null,
-          imageUrl: null,
-          productId: report.productid,
-        })) || [];
-        setStockItems(items);
+  const fetchStockData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      console.log('Fetching data from Supabase...');
+      const { data: sales, error: salesError } = await supabase
+        .from('salesreports')
+        .select(`
+          salesreportid,
+          productid,
+          reportdate,
+          openingcylinders,
+          closingcylinders,
+          salecylinders,
+          products(productname, producttype)
+        `);
+      if (salesError) throw new Error(`Error fetching sales: ${salesError.message}`);
+      console.log('Sales data fetched:', sales);
+      const items: StockItem[] = sales?.map((report: any) => ({
+        id: report.salesreportid,
+        name: report.products?.productname || `Product ${report.productid}`,
+        quantity: report.closingcylinders || 0,
+        unit: 'cyl',
+        specifications: report.products?.producttype || 'Cylinder',
+        category: report.products?.producttype || 'Cylinder',
+        pricePerUnit: 10.00,
+        supplierId: null,
+        addedBy: 'system',
+        dateAdded: report.reportdate || new Date().toISOString(),
+        lastUpdated: report.reportdate || new Date().toISOString(),
+        threshold: 5,
+        barcode: null,
+        imageUrl: null,
+        productId: report.productid,
+      })) || [];
+      setStockItems(items);
 
-        const { data: trans, error: transError } = await supabase
-          .from('salesreports')
-          .select(`
-            salesreportid,
-            productid,
-            reportdate,
-            salecylinders,
-            salesunits,
-            products(productname)
-          `)
-          .order('reportdate', { ascending: false })
-          .limit(10);
-        if (transError) throw new Error(`Error fetching transactions: ${transError.message}`);
-        console.log('Transaction data fetched:', trans);
-        const transData: Transaction[] = trans?.map((t: any) => ({
-          id: t.salesreportid,
-          timestamp: t.reportdate,
-          productid: t.productid,
-          productname: t.products?.productname || `Product ${t.productid}`,
-          type: 'outbound',
-          quantity: t.salecylinders || 0,
-          userId: 'system',
-          userName: 'System User',
-          reason: 'Sale',
-          transferredTo: 'Customer',
-          department: 'Sales',
-          notes: 'Standard sale transaction',
-          status: 'completed',
-          createdat: t.reportdate || new Date().toISOString(),
-        })) || [];
-        setTransactions(transData);
-      } catch (err) {
-        console.error('Fetch error:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error occurred');
-      } finally {
-        setLoading(false);
-        console.log('Data fetch completed. Loading:', loading, 'Error:', error);
-      }
-    };
-    fetchData();
+      const { data: trans, error: transError } = await supabase
+        .from('salesreports')
+        .select(`
+          salesreportid,
+          productid,
+          reportdate,
+          salecylinders,
+          products(productname)
+        `)
+        .order('reportdate', { ascending: false })
+        .limit(10);
+      if (transError) throw new Error(`Error fetching transactions: ${transError.message}`);
+      console.log('Transaction data fetched:', trans);
+      const transData: Transaction[] = trans?.map((t: any) => ({
+        id: t.salesreportid,
+        timestamp: t.reportdate,
+        productid: t.productid,
+        productname: t.products?.productname || `Product ${t.productid}`,
+        type: 'outbound',
+        quantity: t.salecylinders || 0,
+        userId: 'system',
+        userName: 'System User',
+        reason: 'Sale',
+        transferredTo: 'Customer',
+        department: 'N/A',
+        notes: 'Standard sale transaction',
+        status: 'completed',
+        createdat: t.reportdate || new Date().toISOString(),
+      })) || [];
+      setTransactions(transData);
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+    } finally {
+      setLoading(false);
+      console.log('Data fetch completed. Loading:', loading, 'Error:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchStockData();
   }, []);
 
   const addStockItem = (item: Omit<StockItem, 'id' | 'lastUpdated' | 'dateAdded'>) => {
@@ -134,7 +134,7 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setStockItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const addTransaction = (transaction: Omit<Transaction, 'id' | 'timestamp' | 'createdat'>) => {
+  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'timestamp' | 'createdat'>) => {
     const newTransaction: Transaction = {
       ...transaction,
       id: Math.floor(Math.random() * 1000000),
@@ -142,6 +142,22 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createdat: new Date().toISOString(),
     };
     setTransactions(prev => [...prev, newTransaction]);
+
+    // Sync with stocktransactions table
+    const transactionData = {
+      productid: transaction.productid,
+      transactiondate: newTransaction.timestamp.split('T')[0],
+      stocktype: 'Cylinder',
+      openingbalance: stockItems.find(item => item.productId === transaction.productid)?.quantity || 0,
+      purchase: 0,
+      sales: transaction.reason === 'Sales' ? transaction.quantity : 0,
+      ownuse: transaction.reason === 'OwnUse' ? transaction.quantity : 0,
+      physicalstock: stockItems.find(item => item.productId === transaction.productid)?.quantity || 0 - transaction.quantity,
+      discrepancy_note: transaction.notes || null,
+      createdat: newTransaction.createdat,
+    };
+    const { error } = await supabase.from('stocktransactions').insert(transactionData);
+    if (error) console.error('Error inserting transaction:', error.message);
   };
 
   const getSalesSummary = (): SalesSummary => {
@@ -201,6 +217,7 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       getSalesSummary,
       getLowStockItems,
       searchItems,
+      fetchStockData,
       loading,
       error,
     }}>

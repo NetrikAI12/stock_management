@@ -6,7 +6,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import StatsCard from './StatsCard';
 import RecentTransactions from './RecentTransactions';
 import StockChart from './StockChart';
-import LowStockAlerts from './LowStockAlerts';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string | null }> {
   constructor(props: { children: React.ReactNode }) {
@@ -29,6 +28,25 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     return this.props.children;
   }
 }
+
+const LowStockAlerts: React.FC<{ items: { id: number; name: string; quantity: number; threshold: number }[] }> = ({ items }) => {
+  return (
+    <div className="space-y-4">
+      {items.map((item) => (
+        <div key={item.id} className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="font-medium text-red-900 dark:text-red-100">{item.name}</p>
+              <p className="text-sm text-red-700 dark:text-red-200">
+                Quantity: {item.quantity} (Threshold: {item.threshold})
+              </p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -54,8 +72,8 @@ const Dashboard: React.FC = () => {
   if (error) {
     return (
       <div className="text-center py-10 text-red-600 dark:text-red-400">
-        Error: {error}. Please try again later or check your connection.
-      </div>
+      Error: {error}. Please try again later or check your connection.
+    </div>
     );
   }
 
@@ -99,7 +117,7 @@ const Dashboard: React.FC = () => {
           />
           <StatsCard
             title="Recent Sales"
-            value={summary.recentTransactions.toLocaleString()}
+            value={`$${summary.totalValue.toLocaleString()}`} // Changed to totalValue to match Total Sales Value
             change="Last 7 days"
             changeType="neutral"
             icon={Activity}
@@ -128,7 +146,7 @@ const Dashboard: React.FC = () => {
             {lowStockItems.length > 0 ? (
               <LowStockAlerts items={lowStockItems} />
             ) : (
-              <div className="text-center text-gray-500">No low stock items</div>
+              <div className="text-center text-gray-500">All stock levels are healthy!</div>
             )}
           </div>
         </div>
