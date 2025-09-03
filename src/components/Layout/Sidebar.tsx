@@ -23,6 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff', 'viewer'] },
+<<<<<<< HEAD
     { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'staff', 'viewer'] },
     { id: 'products', label: 'Products', icon: ShoppingCart, roles: ['admin', 'staff', 'viewer'] },
     { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'staff', 'viewer'] },
@@ -31,6 +32,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'reports', label: 'Reports', icon: FileText, roles: ['admin', 'staff', 'viewer'] },
     { id: 'cylinder-stock-product-wise', label: 'Cylinder Stock Product Wise', icon: Package, roles: ['admin', 'staff'] },
     { id: 'cylinder-stock-customer-wise', label: 'Cylinder Stock Customer Wise', icon: Users, roles: ['admin', 'staff'] },
+=======
+    { id: 'cylinder-stock-product-wise', label: 'Cylinder Stock Product Wise', icon: Package, roles: ['admin', 'staff'] },
+    { id: 'cylinder-stock-customer-wise', label: 'Cylinder Stock Customer Wise', icon: Users, roles: ['admin', 'staff'] },
+    { id: 'inventory', label: 'Inventory', icon: Package, roles: ['admin', 'staff', 'viewer'] },
+    { id: 'products', label: 'Products', icon: ShoppingCart, roles: ['admin', 'staff', 'viewer'] },
+    { id: 'customers', label: 'Customers', icon: Users, roles: ['admin', 'staff', 'viewer'] },
+    { id: 'distribute-stock', label: 'Distribute Stock', icon: Minus, roles: ['admin', 'staff'] },
+    { id: 'reports', label: 'Reports', icon: FileText, roles: ['admin', 'staff', 'viewer'] },
+>>>>>>> 6b6b1c6 (More updates after rebase)
     { id: 'low-stock', label: 'Low Stock Alerts', icon: AlertTriangle, roles: ['admin', 'staff', 'viewer'] },
     { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin', 'staff'] },
   ];

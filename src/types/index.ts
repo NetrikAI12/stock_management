@@ -57,8 +57,32 @@ export interface SalesSummary {
   totalCylinders: number; // Total cylinders
   lowStockCylinders: number; // Number of low stock cylinders
   productSummary: { name: string; value: number }[]; // Summary by product
+<<<<<<< HEAD
 }
 
+=======
+}
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  role: 'admin' | 'staff' | 'viewer';
+  firstName: string;
+  lastName: string;
+  createdAt: string;
+  mfaEnabled: boolean;
+  lastLogin?: string;
+  photo?: string; // Added for Profile.tsx compatibility
+}
+
+export interface Notification {
+  id: number;
+  type: 'transaction' | 'stock' | 'customer' | 'distributed';
+  message: string;
+  timestamp: string;
+  viewed: boolean;
+}
+>>>>>>> 6b6b1c6 (More updates after rebase)
 // Updated for Low Stock Items
 export interface LowStockItem {
   id: number;

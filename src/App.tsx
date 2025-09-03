@@ -1,13 +1,13 @@
-// App.tsx
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { StockProvider, useStock } from './contexts/StockContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import LoginForm from './components/Auth/LoginForm';
 import Sidebar from './components/Layout/Sidebar';
 import Header from './components/Layout/Header';
 import Dashboard from './components/Dashboard/Dashboard';
 import InventoryView from './components/Inventory/InventoryView';
-import AddStockForm from './components/Stock/AddStockForm';
 import DistributeStockForm from './components/Stock/DistributeStockForm';
 import ReportsView from './components/Reports/ReportsView';
 import CylinderStockProductWise from './components/Stock/CylinderStockProductWise';
@@ -16,24 +16,20 @@ import ProductsView from './components/Products/ProductsView';
 import CustomersView from './components/Customers/CustomersView';
 import LowStockAlerts from './components/Dashboard/LowStockAlerts';
 import SettingsView from './components/Settings/SettingsView';
+<<<<<<< HEAD
+=======
+import Profile from './components/Dashboard/Profile';
+>>>>>>> 6b6b1c6 (More updates after rebase)
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
   const { loading: stockLoading, getLowStockItems } = useStock();
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
-  });
 
+  // Remove theme handling from AppContent since ThemeProvider manages it
   useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
+    // No need to handle theme here; ThemeProvider does it
+  }, []);
 
   if (isLoading || stockLoading) {
     return (
@@ -53,8 +49,6 @@ const AppContent: React.FC = () => {
         return <Dashboard />;
       case 'inventory':
         return <InventoryView />;
-      case 'add-stock':
-        return <AddStockForm />;
       case 'distribute-stock':
         return <DistributeStockForm />;
       case 'reports':
@@ -70,21 +64,25 @@ const AppContent: React.FC = () => {
       case 'low-stock':
         return <LowStockAlerts items={getLowStockItems()} />;
       case 'settings':
+<<<<<<< HEAD
         return<SettingsView/>
+=======
+        return <SettingsView />;
+      case 'profile':
+        return <Profile setActiveTab={setActiveTab} />;
+>>>>>>> 6b6b1c6 (More updates after rebase)
       default:
         return <Dashboard />;
     }
   };
 
   return (
-    <div className={`min-h-screen bg-gray-100 dark:bg-gray-900 ${darkMode ? 'dark' : ''}`}>
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <div className="flex">
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
         <div className="flex-1">
-          <Header darkMode={darkMode} setDarkMode={setDarkMode} />
-          <main className="p-6">
-            {renderContent()}
-          </main>
+          <Header setActiveTab={setActiveTab} />
+          <main className="p-6">{renderContent()}</main>
         </div>
       </div>
     </div>
@@ -95,7 +93,11 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <StockProvider>
-        <AppContent />
+        <ThemeProvider>
+          <NotificationProvider>
+            <AppContent />
+          </NotificationProvider>
+        </ThemeProvider>
       </StockProvider>
     </AuthProvider>
   );

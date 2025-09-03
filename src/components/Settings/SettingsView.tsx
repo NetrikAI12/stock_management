@@ -3,8 +3,13 @@ import { Settings, Lock, Bell, Database, Moon, User, Package, HelpCircle } from 
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStock } from '../../contexts/StockContext';
+<<<<<<< HEAD
 
 // ErrorBoundary component to catch and handle rendering errors
+=======
+import { useNotifications } from '../../contexts/NotificationContext';
+
+>>>>>>> 6b6b1c6 (More updates after rebase)
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string | null }> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
@@ -30,6 +35,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 const SettingsView: React.FC = () => {
   const { user, logout } = useAuth();
   const { fetchStockData } = useStock();
+<<<<<<< HEAD
+=======
+  const { addNotification } = useNotifications();
+>>>>>>> 6b6b1c6 (More updates after rebase)
   const [settings, setSettings] = useState({
     threshold: 10,
     unit: 'units',
@@ -113,6 +122,10 @@ const SettingsView: React.FC = () => {
 
         setSuccess('Settings saved successfully!');
         document.documentElement.classList.toggle('dark', settings.darkMode);
+<<<<<<< HEAD
+=======
+        addNotification({ type: 'user', message: 'Settings updated successfully' });
+>>>>>>> 6b6b1c6 (More updates after rebase)
       }
     } catch (err) {
       console.error('Error in saveSettings:', err);
@@ -123,7 +136,12 @@ const SettingsView: React.FC = () => {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+<<<<<<< HEAD
     const { name, value, type, checked } = e.target;
+=======
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+>>>>>>> 6b6b1c6 (More updates after rebase)
     setSettings((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -145,6 +163,10 @@ const SettingsView: React.FC = () => {
 
         document.documentElement.classList.toggle('dark', newDarkMode);
         setSuccess('Dark mode updated successfully!');
+<<<<<<< HEAD
+=======
+        addNotification({ type: 'theme', message: `Dark mode ${newDarkMode ? 'enabled' : 'disabled'}` });
+>>>>>>> 6b6b1c6 (More updates after rebase)
       }
     } catch (err) {
       console.error('Error in toggleDarkMode:', err);
@@ -158,6 +180,10 @@ const SettingsView: React.FC = () => {
     try {
       await fetchStockData();
       setSuccess('Data synced successfully!');
+<<<<<<< HEAD
+=======
+      addNotification({ type: 'stock', message: 'Data synced successfully' });
+>>>>>>> 6b6b1c6 (More updates after rebase)
     } catch (err) {
       console.error('Error in syncDataNow:', err);
       setError('Failed to sync data. Please try again later.');
@@ -192,7 +218,10 @@ const SettingsView: React.FC = () => {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+<<<<<<< HEAD
           {/* User Profile */}
+=======
+>>>>>>> 6b6b1c6 (More updates after rebase)
           <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-3">
               <User className="h-5 w-5 mr-2" />
@@ -229,7 +258,10 @@ const SettingsView: React.FC = () => {
             </div>
           </div>
 
+<<<<<<< HEAD
           {/* Inventory Configuration */}
+=======
+>>>>>>> 6b6b1c6 (More updates after rebase)
           <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-3">
               <Package className="h-5 w-5 mr-2" />
@@ -277,7 +309,10 @@ const SettingsView: React.FC = () => {
             </div>
           </div>
 
+<<<<<<< HEAD
           {/* Alert Preferences */}
+=======
+>>>>>>> 6b6b1c6 (More updates after rebase)
           <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-3">
               <Bell className="h-5 w-5 mr-2" />
@@ -308,7 +343,10 @@ const SettingsView: React.FC = () => {
             </div>
           </div>
 
+<<<<<<< HEAD
           {/* Security Settings */}
+=======
+>>>>>>> 6b6b1c6 (More updates after rebase)
           <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-3">
               <Lock className="h-5 w-5 mr-2" />
@@ -351,7 +389,10 @@ const SettingsView: React.FC = () => {
             </div>
           </div>
 
+<<<<<<< HEAD
           {/* Theme and UI */}
+=======
+>>>>>>> 6b6b1c6 (More updates after rebase)
           <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-3">
               <Moon className="h-5 w-5 mr-2" />
@@ -387,7 +428,10 @@ const SettingsView: React.FC = () => {
             </div>
           </div>
 
+<<<<<<< HEAD
           {/* Data Management */}
+=======
+>>>>>>> 6b6b1c6 (More updates after rebase)
           <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-3">
               <Database className="h-5 w-5 mr-2" />
@@ -419,7 +463,10 @@ const SettingsView: React.FC = () => {
           </div>
         </div>
 
+<<<<<<< HEAD
         {/* Save and Logout */}
+=======
+>>>>>>> 6b6b1c6 (More updates after rebase)
         <div className="flex justify-between mt-4">
           <button
             onClick={saveSettings}
@@ -429,7 +476,14 @@ const SettingsView: React.FC = () => {
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
           <button
+<<<<<<< HEAD
             onClick={logout}
+=======
+            onClick={() => {
+              logout();
+              addNotification({ type: 'user', message: 'User logged out' });
+            }}
+>>>>>>> 6b6b1c6 (More updates after rebase)
             className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
           >
             Logout

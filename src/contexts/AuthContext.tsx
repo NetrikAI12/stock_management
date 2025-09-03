@@ -1,3 +1,4 @@
+// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
 
@@ -18,7 +19,6 @@ export const useAuth = () => {
   return context;
 };
 
-// Mock users for demo
 const mockUsers: User[] = [
   {
     id: '1',
@@ -29,6 +29,7 @@ const mockUsers: User[] = [
     lastName: 'Admin',
     createdAt: '2024-01-01',
     mfaEnabled: true,
+    photo: 'https://via.placeholder.com/150',
   },
   {
     id: '2',
@@ -39,6 +40,7 @@ const mockUsers: User[] = [
     lastName: 'Staff',
     createdAt: '2024-01-01',
     mfaEnabled: false,
+    photo: 'https://via.placeholder.com/150',
   },
   {
     id: '3',
@@ -49,6 +51,7 @@ const mockUsers: User[] = [
     lastName: 'Viewer',
     createdAt: '2024-01-01',
     mfaEnabled: false,
+    photo: 'https://via.placeholder.com/150',
   },
 ];
 
@@ -57,25 +60,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth data
     const storedUser = localStorage.getItem('currentUser');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Error parsing stored user:', error);
+        localStorage.removeItem('currentUser');
+      }
     }
     setIsLoading(false);
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    // Mock authentication - in real app, this would call your API
-    const foundUser = mockUsers.find(u => u.username === username);
-    
+    setIsLoading(true);
+    const foundUser = mockUsers.find(
+      (u) => u.username.toLowerCase() === username.toLowerCase()
+    );
+
     if (foundUser && password === 'password') {
       const updatedUser = { ...foundUser, lastLogin: new Date().toISOString() };
       setUser(updatedUser);
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      setIsLoading(false);
       return true;
     }
-    
+
+    setIsLoading(false);
     return false;
   };
 

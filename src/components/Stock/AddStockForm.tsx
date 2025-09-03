@@ -1,168 +1,172 @@
-import React, { useState } from 'react';
-import { Save, Scan, ChevronDown } from 'lucide-react';
-import { useStock } from '../../contexts/StockContext';
+import React, { useState, useEffect } from 'react';
+import { Save, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../supabaseClient';
 
 const AddStockForm: React.FC = () => {
-  const { addStockItem, suppliers } = useStock();
   const { user } = useAuth();
-  
   const [formData, setFormData] = useState({
-    name: '',
-    quantity: 0,
-    unit: 'pieces',
-    specifications: '',
-    category: 'Electronics',
-    pricePerUnit: 0,
-    supplierId: '',
-    threshold: 10,
-    barcode: '',
-    image_url: '',
+    productName: '',
+    productType: 'Medical',
+    defaultUnit: 'Cylinders',
+    description: '',
+    openingBalance: 0,
+    cylindersReceived: 0,
+    cylindersDelivered: 0,
+    cylindersSold: 0,
+    cylindersConverted: 0,
+    physicalStock: 0,
+    threshold: 5,
   });
 
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 3;
+  const totalSteps = 2;
 
-  const categories = [
-    'Electronics',
-    'Furniture', 
-    'Consumables',
-    'Tools',
-    'Office Supplies',
-    'Safety Equipment'
-  ];
+  const productTypes = ['Medical', 'Industrial'];
 
-  const units = [
-    'pieces',
-    'kg', 
-    'liters',
-    'meters',
-    'boxes',
-    'reams',
-    'bottles',
-    'custom'
-  ];
+  const [productTypeSearch, setProductTypeSearch] = useState(formData.productType);
+  const [showProductTypeDropdown, setShowProductTypeDropdown] = useState(false);
 
-  const [categorySearch, setCategorySearch] = useState(formData.category);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-
-  const filteredCategories = categories.filter(cat =>
-    cat.toLowerCase().includes(categorySearch.toLowerCase())
+  const filteredProductTypes = productTypes.filter(type =>
+    type.toLowerCase().includes(productTypeSearch.toLowerCase())
   );
+
+  useEffect(() => {
+    // Calculate physicalStock based on other fields
+    const newPhysicalStock =
+      formData.openingBalance +
+      formData.cylindersReceived -
+      (formData.cylindersDelivered + formData.cylindersSold + formData.cylindersConverted);
+    setFormData(prev => ({ ...prev, physicalStock: newPhysicalStock >= 0 ? newPhysicalStock : 0 }));
+  }, [
+    formData.openingBalance,
+    formData.cylindersReceived,
+    formData.cylindersDelivered,
+    formData.cylindersSold,
+    formData.cylindersConverted,
+  ]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'number' ? parseFloat(value) || 0 : value
+      [name]: type === 'number' ? parseFloat(value) || 0 : value,
     }));
   };
 
-  const handleCategorySelect = (category: string) => {
-    setFormData(prev => ({ ...prev, category }));
-    setCategorySearch(category);
-    setShowCategoryDropdown(false);
+  const handleProductTypeSelect = (type: string) => {
+    setFormData(prev => ({ ...prev, productType: type }));
+    setProductTypeSearch(type);
+    setShowProductTypeDropdown(false);
   };
 
-  const handleCategoryBlur = () => {
+  const handleProductTypeBlur = () => {
     setTimeout(() => {
-      const matched = categories.find(cat => cat.toLowerCase() === categorySearch.toLowerCase());
+      const matched = productTypes.find(type => type.toLowerCase() === productTypeSearch.toLowerCase());
       if (matched) {
-        setFormData(prev => ({ ...prev, category: matched }));
-        setCategorySearch(matched);
+        setFormData(prev => ({ ...prev, productType: matched }));
+        setProductTypeSearch(matched);
       } else {
-        setCategorySearch(formData.category);
+        setProductTypeSearch(formData.productType);
       }
-      setShowCategoryDropdown(false);
+      setShowProductTypeDropdown(false);
     }, 100);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.name.trim()) {
-      alert('Please enter an item name');
+
+    if (!formData.productName.trim()) {
+      alert('Please enter a product name');
       return;
     }
 
     try {
-      // Insert into Supabase database
-      const { data, error } = await supabase
-        .from('stockitems')
-        .insert([{
-          name: formData.name,
-          quantity: formData.quantity,
-          unit: formData.unit,
-          specifications: formData.specifications || null,
-          category: formData.category,
-          price_per_unit: formData.pricePerUnit,
-          supplier_id: formData.supplierId || null,
-          added_by: user?.username || 'unknown',
-          threshold: formData.threshold,
-          barcode: formData.barcode || null,
-          image_url: formData.image_url || null,
-        }]);
+      // Check if product already exists
+      const { data: existingProduct, error: checkError } = await supabase
+        .from('products')
+        .select('productid')
+        .eq('productname', formData.productName)
+        .single();
 
-      if (error) {
-        console.error('Error inserting stock item:', error);
-        alert(`Failed to add item: ${error.message}`);
-        return;
+      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 means no rows found
+        throw checkError;
       }
 
-      // Update local context
-      addStockItem({
-        ...formData,
-        addedBy: user?.username || 'unknown',
-      });
+      let productId;
+      if (existingProduct) {
+        // Product exists, use its productid
+        productId = existingProduct.productid;
+        alert(`Product "${formData.productName}" already exists. Updating stock...`);
+      } else {
+        // Insert new product
+        const { data: productData, error: productError } = await supabase
+          .from('products')
+          .insert({
+            productname: formData.productName,
+            producttype: formData.productType,
+            defaultunit: formData.defaultUnit,
+            description: formData.description || null,
+          })
+          .select('productid')
+          .single();
 
-      // Reset form
+        if (productError) throw productError;
+        productId = productData.productid;
+      }
+
+      // Insert or update stock in cylinderstockproductwise
+      const { error: stockError } = await supabase
+        .from('cylinderstockproductwise')
+        .insert({
+          productid: productId,
+          transactiondate: new Date().toISOString().split('T')[0],
+          openingbalance: formData.openingBalance,
+          cylindersreceived: formData.cylindersReceived,
+          cylindersdelivered: formData.cylindersDelivered,
+          cylinderssold: formData.cylindersSold,
+          cylindersconverted: formData.cylindersConverted,
+          physicalstock: formData.physicalStock,
+          createdat: new Date().toISOString(),
+        });
+
+      if (stockError) throw stockError;
+
+      alert('Cylinder product and stock added/updated successfully!');
       setFormData({
-        name: '',
-        quantity: 0,
-        unit: 'pieces',
-        specifications: '',
-        category: 'Electronics',
-        pricePerUnit: 0,
-        supplierId: '',
-        threshold: 10,
-        barcode: '',
-        image_url: '',
+        productName: '',
+        productType: 'Medical',
+        defaultUnit: 'Cylinders',
+        description: '',
+        openingBalance: 0,
+        cylindersReceived: 0,
+        cylindersDelivered: 0,
+        cylindersSold: 0,
+        cylindersConverted: 0,
+        physicalStock: 0,
+        threshold: 5,
       });
-      setCategorySearch('Electronics');
-      
+      setProductTypeSearch('Medical');
       setCurrentStep(1);
-      alert('Item added successfully!');
     } catch (err) {
-      console.error('Unexpected error:', err);
-      alert('An unexpected error occurred while adding the item');
+      console.error('Error adding/updating cylinder:', err);
+      alert('Failed to add/update cylinder: ' + (err as Error).message);
     }
   };
 
   const nextStep = () => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-    }
+    if (currentStep < totalSteps) setCurrentStep(currentStep + 1);
   };
 
   const prevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleBarcodeRead = () => {
-    // Mock barcode functionality
-    const mockBarcode = Math.random().toString().substr(2, 13);
-    setFormData(prev => ({ ...prev, barcode: mockBarcode }));
-    alert(`Barcode scanned: ${mockBarcode}`);
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Add New Stock Item
+          Add New Cylinder Product
         </h1>
         <div className="text-sm text-gray-500 dark:text-gray-400">
           Step {currentStep} of {totalSteps}
@@ -199,176 +203,182 @@ const AddStockForm: React.FC = () => {
           ))}
         </div>
         <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-          <span>Basic Info</span>
-          <span>Details & Pricing</span>
-          <span>Review & Submit</span>
+          <span>Product Details</span>
+          <span>Stock Information</span>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        {/* Step 1: Basic Information */}
+        {/* Step 1: Product Details */}
         {currentStep === 1 && (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Basic Information
+              Product Details
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Item Name *
+                  Product Name *
                 </label>
                 <input
                   type="text"
-                  name="name"
-                  value={formData.name}
+                  name="productName"
+                  value={formData.productName}
                   onChange={handleInputChange}
                   required
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Enter item name"
+                  placeholder="Enter cylinder name"
                 />
               </div>
 
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Category *
+                  Product Type *
                 </label>
                 <input
                   type="text"
-                  value={categorySearch}
+                  value={productTypeSearch}
                   onChange={(e) => {
-                    setCategorySearch(e.target.value);
-                    setShowCategoryDropdown(true);
+                    setProductTypeSearch(e.target.value);
+                    setShowProductTypeDropdown(true);
                   }}
-                  onFocus={() => setShowCategoryDropdown(true)}
-                  onBlur={handleCategoryBlur}
+                  onFocus={() => setShowProductTypeDropdown(true)}
+                  onBlur={handleProductTypeBlur}
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Search or select category"
+                  placeholder="Select product type"
                 />
                 <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                {showCategoryDropdown && (
+                {showProductTypeDropdown && (
                   <div className="absolute z-10 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg mt-1 max-h-48 overflow-y-auto shadow-sm">
-                    {filteredCategories.length > 0 ? (
-                      filteredCategories.map(category => (
+                    {filteredProductTypes.length > 0 ? (
+                      filteredProductTypes.map(type => (
                         <div
-                          key={category}
+                          key={type}
                           className="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-gray-900 dark:text-white"
-                          onClick={() => handleCategorySelect(category)}
+                          onClick={() => handleProductTypeSelect(type)}
                         >
-                          {category}
+                          {type}
                         </div>
                       ))
                     ) : (
-                      <div className="p-3 text-gray-500 dark:text-gray-400">No matching categories</div>
+                      <div className="p-3 text-gray-500 dark:text-gray-400">No matching types</div>
                     )}
                   </div>
                 )}
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Initial Quantity *
-                </label>
-                <input
-                  type="number"
-                  name="quantity"
-                  value={formData.quantity}
-                  onChange={handleInputChange}
-                  min="0"
-                  required
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="0"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Unit *
-                </label>
-                <select
-                  name="unit"
-                  value={formData.unit}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  {units.map(unit => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </select>
-              </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Barcode
+                Description
               </label>
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  name="barcode"
-                  value={formData.barcode}
-                  onChange={handleInputChange}
-                  className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Enter or scan barcode"
-                />
-                <button
-                  type="button"
-                  onClick={handleBarcodeRead}
-                  className="px-4 py-3 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 flex items-center"
-                >
-                  <Scan className="h-4 w-4 mr-2" />
-                  Scan
-                </button>
-              </div>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                rows={4}
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Enter product description"
+              />
             </div>
           </div>
         )}
 
-        {/* Step 2: Details & Pricing */}
+        {/* Step 2: Stock Information */}
         {currentStep === 2 && (
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Details & Pricing
+              Stock Information
             </h3>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Specifications
-              </label>
-              <textarea
-                name="specifications"
-                value={formData.specifications}
-                onChange={handleInputChange}
-                rows={4}
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                placeholder="Detailed description, features, model numbers, etc."
-              />
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Price per Unit *
+                  Opening Balance
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
-                  <input
-                    type="number"
-                    name="pricePerUnit"
-                    value={formData.pricePerUnit}
-                    onChange={handleInputChange}
-                    min="0"
-                    step="0.01"
-                    required
-                    className="w-full pl-8 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                    placeholder="0.00"
-                  />
-                </div>
+                <input
+                  type="number"
+                  name="openingBalance"
+                  value={formData.openingBalance}
+                  onChange={handleInputChange}
+                  min="0"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0"
+                />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Low Stock Threshold *
+                  Cylinders Received
+                </label>
+                <input
+                  type="number"
+                  name="cylindersReceived"
+                  value={formData.cylindersReceived}
+                  onChange={handleInputChange}
+                  min="0"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Cylinders Delivered
+                </label>
+                <input
+                  type="number"
+                  name="cylindersDelivered"
+                  value={formData.cylindersDelivered}
+                  onChange={handleInputChange}
+                  min="0"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Cylinders Sold
+                </label>
+                <input
+                  type="number"
+                  name="cylindersSold"
+                  value={formData.cylindersSold}
+                  onChange={handleInputChange}
+                  min="0"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Cylinders Converted
+                </label>
+                <input
+                  type="number"
+                  name="cylindersConverted"
+                  value={formData.cylindersConverted}
+                  onChange={handleInputChange}
+                  min="0"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Physical Stock
+                </label>
+                <input
+                  type="number"
+                  name="physicalStock"
+                  value={formData.physicalStock}
+                  readOnly
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 cursor-not-allowed text-gray-700 dark:text-gray-300"
+                  placeholder="Calculated automatically"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Low Stock Threshold
                 </label>
                 <input
                   type="number"
@@ -376,73 +386,10 @@ const AddStockForm: React.FC = () => {
                   value={formData.threshold}
                   onChange={handleInputChange}
                   min="0"
-                  required
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="10"
+                  placeholder="5"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Supplier
-              </label>
-              <select
-                name="supplierId"
-                value={formData.supplierId}
-                onChange={handleInputChange}
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">Select a supplier</option>
-                {suppliers.map(supplier => (
-                  <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Review & Submit */}
-        {currentStep === 3 && (
-          <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Review & Submit
-            </h3>
-            
-            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-300">Name:</span>
-                  <span className="ml-2 text-gray-900 dark:text-white">{formData.name}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-300">Category:</span>
-                  <span className="ml-2 text-gray-900 dark:text-white">{formData.category}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-300">Quantity:</span>
-                  <span className="ml-2 text-gray-900 dark:text-white">{formData.quantity} {formData.unit}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-300">Unit Price:</span>
-                  <span className="ml-2 text-gray-900 dark:text-white">${formData.pricePerUnit}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-300">Total Value:</span>
-                  <span className="ml-2 text-gray-900 dark:text-white">${(formData.quantity * formData.pricePerUnit).toFixed(2)}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-300">Threshold:</span>
-                  <span className="ml-2 text-gray-900 dark:text-white">{formData.threshold} {formData.unit}</span>
-                </div>
-              </div>
-              
-              {formData.specifications && (
-                <div className="mt-4">
-                  <span className="font-medium text-gray-600 dark:text-gray-300">Specifications:</span>
-                  <p className="mt-1 text-gray-900 dark:text-white">{formData.specifications}</p>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -472,7 +419,7 @@ const AddStockForm: React.FC = () => {
               className="inline-flex items-center px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               <Save className="h-4 w-4 mr-2" />
-              Add Item
+              Add Cylinder
             </button>
           )}
         </div>

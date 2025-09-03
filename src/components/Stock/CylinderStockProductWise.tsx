@@ -1,21 +1,22 @@
-// components/Stock/CylinderStockProductWise.tsx
 import React, { useState, useEffect } from 'react';
 import { Save, Edit, Trash2 } from 'lucide-react';
 import { useStock } from '../../contexts/StockContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../supabaseClient';
-import { Bar } from 'react-chartjs-2';
+import { Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
 } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
 const CylinderStockProductWise: React.FC = () => {
   const { addStockItem } = useStock();
@@ -37,6 +38,7 @@ const CylinderStockProductWise: React.FC = () => {
   const [editData, setEditData] = useState<any>({});
   const [showGraph, setShowGraph] = useState(false);
   const [selectedField, setSelectedField] = useState('physicalstock');
+  const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
 
   useEffect(() => {
     fetchProductData();
@@ -227,37 +229,41 @@ const CylinderStockProductWise: React.FC = () => {
       {
         label: selectedField,
         data: productData.map(item => item[selectedField] || 0),
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.6)',
-          'rgba(54, 162, 235, 0.6)',
-          'rgba(255, 206, 86, 0.6)',
-          'rgba(75, 192, 192, 0.6)',
-          'rgba(153, 102, 255, 0.6)',
-          'rgba(255, 159, 64, 0.6)',
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(54, 162, 235, 1)',
-          'rgba(255, 206, 86, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(153, 102, 255, 1)',
-          'rgba(255, 159, 64, 1)',
-        ],
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1,
+        ...(chartType === 'line' && { tension: 0.4, fill: false }),
       },
     ],
   };
 
   const chartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: { position: 'top' },
-      title: { display: true, text: `${selectedField.charAt(0).toUpperCase() + selectedField.slice(1)} by Record ID` },
+      title: {
+        display: true,
+        text: `${selectedField.charAt(0).toUpperCase() + selectedField.slice(1)} by Record ID`,
+      },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: { display: true, text: 'Quantity' },
+      },
+      x: {
+        title: { display: true, text: 'Record ID' },
+      },
     },
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
           Add Cylinder Stock Product Wise
@@ -517,14 +523,13 @@ const CylinderStockProductWise: React.FC = () => {
       {/* Display Table */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Existing Cylinder Stock</h3>
-        
         <div className="overflow-x-auto relative">
-             <button
-                onClick={() => setShowGraph(true)}
-                className="ml-auto px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700"
-            >
-                Show Graph
-            </button>
+          <button
+            onClick={() => setShowGraph(true)}
+            className="ml-auto mb-4 px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700"
+          >
+            Show Graph
+          </button>
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
@@ -575,13 +580,23 @@ const CylinderStockProductWise: React.FC = () => {
 
       {showGraph && (
         <div className="fixed inset-0 bg-gray-800 bg-opacity-75 backdrop-blur-md flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-3/4 h-3/4 relative">
-            <button
-              onClick={() => setShowGraph(false)}
-              className="mb-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
-              Close
-            </button>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-3/4 h-3/4 relative overflow-auto">
+            <div className="flex justify-between mb-4">
+              <button
+                onClick={() => setShowGraph(false)}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Close
+              </button>
+              <select
+                value={chartType}
+                onChange={(e) => setChartType(e.target.value as 'bar' | 'line')}
+                className="p-2 border border-gray-300 rounded-lg bg-white dark:bg-gray-700 dark:text-white"
+              >
+                <option value="bar">Bar Chart</option>
+                <option value="line">Line Chart</option>
+              </select>
+            </div>
             <select
               value={selectedField}
               onChange={(e) => setSelectedField(e.target.value)}
@@ -594,7 +609,13 @@ const CylinderStockProductWise: React.FC = () => {
               <option value="cylindersconverted">Cylinders Converted</option>
               <option value="physicalstock">Physical Stock</option>
             </select>
-            <Bar data={chartData} options={chartOptions} />
+            <div className="h-full w-full">
+              {chartType === 'bar' ? (
+                <Bar data={chartData} options={chartOptions} />
+              ) : (
+                <Line data={chartData} options={chartOptions} />
+              )}
+            </div>
           </div>
         </div>
       )}
