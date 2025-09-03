@@ -56,12 +56,10 @@ export interface SalesSummary {
   categorySummary: Record<string, number>; // Summary by category (currently empty)
   totalCylinders: number; // Total cylinders
   lowStockCylinders: number; // Number of low stock cylinders
-  productSummary: { name: string; value: number }[]; // Summary by product
-<<<<<<< HEAD
+  productSummary: { name: string; value: number }[]; // Summary by product HEAD
 }
 
-=======
-}
+
 export interface User {
   id: string;
   username: string;
@@ -82,7 +80,6 @@ export interface Notification {
   timestamp: string;
   viewed: boolean;
 }
->>>>>>> 6b6b1c6 (More updates after rebase)
 // Updated for Low Stock Items
 export interface LowStockItem {
   id: number;
