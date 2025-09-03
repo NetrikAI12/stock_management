@@ -1,14 +1,8 @@
-// components/Dashboard/LowStockAlerts.tsx
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Package } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { supabase } from '../../supabaseClient';
-<<<<<<< HEAD
-
-const LowStockAlerts: React.FC = () => {
-  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
-=======
 
 // Define interface for stock items
 interface StockItem {
@@ -26,7 +20,6 @@ const LowStockAlerts: React.FC = () => {
   const { user } = useAuth();
   const { addNotification } = useNotifications();
   const [lowStockItems, setLowStockItems] = useState<StockItem[]>([]);
->>>>>>> 6b6b1c6 (More updates after rebase)
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,10 +35,6 @@ const LowStockAlerts: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-<<<<<<< HEAD
-      // Fetch all stock levels from stocktransactions joined with products
-=======
->>>>>>> 6b6b1c6 (More updates after rebase)
       const { data, error: fetchError } = await supabase
         .from('stocktransactions')
         .select(`
@@ -60,25 +49,15 @@ const LowStockAlerts: React.FC = () => {
             defaultunit
           )
         `)
-<<<<<<< HEAD
-        .order('productid, transactiondate', { ascending: [true, false] }); // Order by productid, then latest transaction
-=======
         .order('productid, transactiondate', { ascending: [true, false] });
->>>>>>> 6b6b1c6 (More updates after rebase)
 
       if (fetchError) {
         throw new Error(`Error fetching stock transactions: ${fetchError.message}`);
       }
 
       if (data && data.length > 0) {
-<<<<<<< HEAD
-        // Group by productid and get the latest physicalstock
-        const latestStocks = data.reduce((acc: any[], curr: any) => {
-          const existing = acc.find((item) => item.productid === curr.productid);
-=======
         const latestStocks = data.reduce((acc: StockItem[], curr: any) => {
           const existing = acc.find((item) => item.id === curr.productid);
->>>>>>> 6b6b1c6 (More updates after rebase)
           if (!existing) {
             acc.push({
               id: curr.productid,
@@ -86,19 +65,11 @@ const LowStockAlerts: React.FC = () => {
               type: curr.products.producttype,
               quantity: curr.physicalstock,
               unit: curr.products.defaultunit,
-<<<<<<< HEAD
-              threshold: 10, // Match this with Dashboard's threshold if different
-=======
               threshold: 5,
->>>>>>> 6b6b1c6 (More updates after rebase)
               lastUpdated: curr.transactiondate,
               discrepancyNote: curr.discrepancy_note || 'None',
             });
           } else if (new Date(existing.lastUpdated) < new Date(curr.transactiondate)) {
-<<<<<<< HEAD
-            // Update if a newer transaction is found for the same productid
-=======
->>>>>>> 6b6b1c6 (More updates after rebase)
             existing.quantity = curr.physicalstock;
             existing.lastUpdated = curr.transactiondate;
             existing.discrepancyNote = curr.discrepancy_note || 'None';
@@ -106,11 +77,8 @@ const LowStockAlerts: React.FC = () => {
           return acc;
         }, []);
 
-        const lowStock = latestStocks.filter((item) => item.quantity < 5);
+        const lowStock = latestStocks.filter((item) => item.quantity < item.threshold);
         setLowStockItems(lowStock);
-<<<<<<< HEAD
-        console.log('Low stock items:', lowStock); // Debug log
-=======
 
         lowStock.forEach((item) => {
           addNotification({
@@ -118,7 +86,6 @@ const LowStockAlerts: React.FC = () => {
             message: `Low stock alert: ${item.name} has ${item.quantity} ${item.unit} remaining`,
           });
         });
->>>>>>> 6b6b1c6 (More updates after rebase)
       }
     } catch (err) {
       console.error('Error in fetchLowStockItems:', err);
@@ -128,8 +95,6 @@ const LowStockAlerts: React.FC = () => {
     }
   };
 
-<<<<<<< HEAD
-=======
   if (!user) {
     return <div className="text-center text-red-600 dark:text-red-400">Please log in to view this page.</div>;
   }
@@ -142,7 +107,6 @@ const LowStockAlerts: React.FC = () => {
     );
   }
 
->>>>>>> 6b6b1c6 (More updates after rebase)
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32 text-gray-600 dark:text-gray-400">
@@ -191,12 +155,6 @@ const LowStockAlerts: React.FC = () => {
                 Type: {item.type} | Current: {item.quantity} {item.unit} (Threshold: {item.threshold})
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-<<<<<<< HEAD
-                Type: {item.type} | Current: {item.quantity} {item.unit} (Threshold: {item.threshold})
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-=======
->>>>>>> 6b6b1c6 (More updates after rebase)
                 Last Updated: {new Date(item.lastUpdated).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">

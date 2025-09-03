@@ -70,21 +70,14 @@ const DistributeStockForm: React.FC = () => {
   };
 
   const filteredItems = stockItems.filter(item =>
-<<<<<<< HEAD
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-=======
     !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
->>>>>>> 6b6b1c6 (More updates after rebase)
     item.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleItemSelect = (item: any) => {
     setSelectedItem(item);
     setSearchQuery(item.name); // Set input field to selected item name
-<<<<<<< HEAD
-=======
     setIsDropdownOpen(false); // Close dropdown after selection
->>>>>>> 6b6b1c6 (More updates after rebase)
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -188,41 +181,6 @@ const DistributeStockForm: React.FC = () => {
                   name="searchQuery"
                   value={searchQuery}
                   onChange={handleInputChange}
-<<<<<<< HEAD
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Search or select a product..."
-                />
-              </div>
-              
-              {searchQuery && !selectedItem && filteredItems.length > 0 && (
-                <div className="mt-2 max-h-48 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
-                  {filteredItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleItemSelect(item)}
-                      className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-600 border-b border-gray-200 dark:border-gray-600 last:border-b-0"
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{item.name}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Type: {item.category} | Unit: {item.unit}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {searchQuery && !selectedItem && filteredItems.length === 0 && (
-                <div className="mt-2 p-3 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg">
-                  No products found
-                </div>
-              )}
-
-=======
                   onFocus={() => setIsDropdownOpen(true)} // Open dropdown on focus
                   onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)} // Close dropdown after focus leaves, with delay
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
@@ -257,7 +215,6 @@ const DistributeStockForm: React.FC = () => {
                 </div>
               )}
 
->>>>>>> 6b6b1c6 (More updates after rebase)
               {selectedItem && (
                 <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
                   <div className="flex items-center justify-between">
@@ -273,10 +230,7 @@ const DistributeStockForm: React.FC = () => {
                         setSelectedItem(null);
                         setSearchQuery('');
                         setLatestBalance(0);
-<<<<<<< HEAD
-=======
                         setIsDropdownOpen(false); // Close dropdown when changing
->>>>>>> 6b6b1c6 (More updates after rebase)
                       }}
                       className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
                     >
