@@ -1,3 +1,4 @@
+// test commit for Git push
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { StockProvider, useStock } from './contexts/StockContext';
@@ -16,10 +17,7 @@ import ProductsView from './components/Products/ProductsView';
 import CustomersView from './components/Customers/CustomersView';
 import LowStockAlerts from './components/Dashboard/LowStockAlerts';
 import SettingsView from './components/Settings/SettingsView';
-<<<<<<< HEAD
-=======
 import Profile from './components/Dashboard/Profile';
->>>>>>> 6b6b1c6 (More updates after rebase)
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -64,13 +62,9 @@ const AppContent: React.FC = () => {
       case 'low-stock':
         return <LowStockAlerts items={getLowStockItems()} />;
       case 'settings':
-<<<<<<< HEAD
-        return<SettingsView/>
-=======
         return <SettingsView />;
       case 'profile':
         return <Profile setActiveTab={setActiveTab} />;
->>>>>>> 6b6b1c6 (More updates after rebase)
       default:
         return <Dashboard />;
     }

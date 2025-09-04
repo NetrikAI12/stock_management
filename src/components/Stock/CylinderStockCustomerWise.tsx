@@ -42,9 +42,13 @@ const CylinderStockCustomerWise: React.FC = () => {
   const [showGraph, setShowGraph] = useState(false);
   const [selectedField, setSelectedField] = useState('closingfull');
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
+  const [products, setProducts] = useState<{ productid: number; productname: string }[]>([]);
+  const [customers, setCustomers] = useState<{ customerid: number; customername: string }[]>([]);
 
   useEffect(() => {
     fetchCustomerData();
+    fetchProducts();
+    fetchCustomers();
   }, []);
 
   const fetchCustomerData = async () => {
@@ -59,7 +63,31 @@ const CylinderStockCustomerWise: React.FC = () => {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('productid, productname')
+      .order('productid', { ascending: true });
+    if (error) {
+      console.error('Error fetching products:', error.message);
+    } else {
+      setProducts(data || []);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('customerid, customername')
+      .order('customerid', { ascending: true });
+    if (error) {
+      console.error('Error fetching customers:', error.message);
+    } else {
+      setCustomers(data || []);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -80,6 +108,26 @@ const CylinderStockCustomerWise: React.FC = () => {
 
     if (!formData.productid || !formData.customerid || !formData.transactiondate) {
       alert('Please fill in required fields (Product ID, Customer ID, and Transaction Date)');
+      return;
+    }
+
+    // Validate productid and customerid exist
+    const { data: productCheck } = await supabase
+      .from('products')
+      .select('productid')
+      .eq('productid', Number(formData.productid))
+      .single();
+    const { data: customerCheck } = await supabase
+      .from('customers')
+      .select('customerid')
+      .eq('customerid', Number(formData.customerid))
+      .single();
+    if (!productCheck) {
+      alert('Invalid Product ID. Please select a valid Product ID from the list.');
+      return;
+    }
+    if (!customerCheck) {
+      alert('Invalid Customer ID. Please select a valid Customer ID from the list.');
       return;
     }
 
@@ -166,6 +214,26 @@ const CylinderStockCustomerWise: React.FC = () => {
 
     if (!formData.productid || !formData.customerid || !formData.transactiondate) {
       alert('Please fill in required fields (Product ID, Customer ID, and Transaction Date)');
+      return;
+    }
+
+    // Validate productid and customerid exist
+    const { data: productCheck } = await supabase
+      .from('products')
+      .select('productid')
+      .eq('productid', Number(formData.productid))
+      .single();
+    const { data: customerCheck } = await supabase
+      .from('customers')
+      .select('customerid')
+      .eq('customerid', Number(formData.customerid))
+      .single();
+    if (!productCheck) {
+      alert('Invalid Product ID. Please select a valid Product ID from the list.');
+      return;
+    }
+    if (!customerCheck) {
+      alert('Invalid Customer ID. Please select a valid Customer ID from the list.');
       return;
     }
 
@@ -338,29 +406,39 @@ const CylinderStockCustomerWise: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Product ID *
                 </label>
-                <input
-                  type="number"
+                <select
                   name="productid"
                   value={formData.productid}
                   onChange={handleInputChange}
                   required
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Enter Product ID"
-                />
+                >
+                  <option value="">Select a Product</option>
+                  {products.map((product) => (
+                    <option key={product.productid} value={product.productid}>
+                      {product.productname} (ID: {product.productid})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Customer ID *
                 </label>
-                <input
-                  type="number"
+                <select
                   name="customerid"
                   value={formData.customerid}
                   onChange={handleInputChange}
                   required
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Enter Customer ID"
-                />
+                >
+                  <option value="">Select a Customer</option>
+                  {customers.map((customer) => (
+                    <option key={customer.customerid} value={customer.customerid}>
+                      {customer.customername} (ID: {customer.customerid})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

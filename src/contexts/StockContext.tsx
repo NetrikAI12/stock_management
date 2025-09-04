@@ -1,4 +1,3 @@
-// contexts/StockContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { StockItem, Transaction, SalesSummary, LowStockItem } from '../types';
@@ -6,10 +5,10 @@ import { StockItem, Transaction, SalesSummary, LowStockItem } from '../types';
 interface StockContextType {
   stockItems: StockItem[];
   transactions: Transaction[];
-  addStockItem: (item: Omit<StockItem, 'id' | 'lastUpdated' | 'dateAdded'>) => void;
-  updateStockItem: (id: number, updates: Partial<StockItem>) => void;
-  deleteStockItem: (id: number) => void;
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp' | 'createdat'>) => void;
+  addStockItem: (item: Omit<StockItem, 'id' | 'lastUpdated' | 'dateAdded'>) => Promise<void>;
+  updateStockItem: (id: number, updates: Partial<StockItem>, cylinderstockid?: number) => Promise<void>;
+  deleteStockItem: (id: number, cylinderstockid?: number) => Promise<void>;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'timestamp' | 'createdat'>) => Promise<void>;
   getSalesSummary: () => SalesSummary;
   getLowStockItems: () => LowStockItem[];
   searchItems: (query: string) => StockItem[];
@@ -38,68 +37,84 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLoading(true);
     setError(null);
     try {
-      console.log('Fetching data from Supabase...');
-      const { data: sales, error: salesError } = await supabase
-        .from('salesreports')
+      console.log('Fetching stock data from cylinderstockproductwise...');
+      const { data: stockData, error: stockError } = await supabase
+        .from('cylinderstockproductwise')
         .select(`
-          salesreportid,
+          cylinderstockid,
           productid,
-          reportdate,
-          openingcylinders,
-          closingcylinders,
-          salecylinders,
-          products(productname, producttype)
-        `);
-      if (salesError) throw new Error(`Error fetching sales: ${salesError.message}`);
-      console.log('Sales data fetched:', sales);
-      const items: StockItem[] = sales?.map((report: any) => ({
-        id: report.salesreportid,
-        name: report.products?.productname || `Product ${report.productid}`,
-        quantity: report.closingcylinders || 0,
-        unit: 'cyl',
-        specifications: report.products?.producttype || 'Cylinder',
-        category: report.products?.producttype || 'Cylinder',
-        pricePerUnit: 10.00,
-        supplierId: null,
-        addedBy: 'system',
-        dateAdded: report.reportdate || new Date().toISOString(),
-        lastUpdated: report.reportdate || new Date().toISOString(),
-        threshold: 5,
-        barcode: null,
-        imageUrl: null,
-        productId: report.productid,
-      })) || [];
+          transactiondate,
+          physicalstock,
+          products(productname, producttype, defaultunit)
+        `)
+        .order('transactiondate', { ascending: false });
+
+      if (stockError) throw new Error(`Error fetching stock data: ${stockError.message}`);
+      console.log('Stock data fetched:', stockData);
+
+      const items: StockItem[] = stockData.reduce((acc: StockItem[], curr: any) => {
+        const existing = acc.find(item => item.productId === curr.productid);
+        if (!existing) {
+          acc.push({
+            id: curr.cylinderstockid,
+            name: curr.products?.productname || `Product ${curr.productid}`,
+            quantity: curr.physicalstock || 0,
+            unit: curr.products?.defaultunit || 'cyl',
+            specifications: curr.products?.producttype || 'Cylinder',
+            category: curr.products?.producttype || 'Cylinder',
+            pricePerUnit: 10.00,
+            supplierId: null,
+            addedBy: 'system',
+            dateAdded: curr.transactiondate || new Date().toISOString(),
+            lastUpdated: curr.transactiondate || new Date().toISOString(),
+            threshold: 5,
+            barcode: null,
+            imageUrl: null,
+            productId: curr.productid,
+          });
+        } else if (new Date(existing.lastUpdated) < new Date(curr.transactiondate)) {
+          existing.id = curr.cylinderstockid;
+          existing.quantity = curr.physicalstock;
+          existing.lastUpdated = curr.transactiondate;
+        }
+        return acc;
+      }, []);
+
       setStockItems(items);
 
       const { data: trans, error: transError } = await supabase
-        .from('salesreports')
+        .from('stocktransactions')
         .select(`
-          salesreportid,
+          id,
           productid,
-          reportdate,
-          salecylinders,
+          transactiondate,
+          physicalstock,
+          discrepancy_note,
           products(productname)
         `)
-        .order('reportdate', { ascending: false })
+        .order('transactiondate', { ascending: false })
         .limit(10);
+
       if (transError) throw new Error(`Error fetching transactions: ${transError.message}`);
       console.log('Transaction data fetched:', trans);
+
       const transData: Transaction[] = trans?.map((t: any) => ({
-        id: t.salesreportid,
-        timestamp: t.reportdate,
+        id: t.id,
+        timestamp: t.transactiondate,
         productid: t.productid,
         productname: t.products?.productname || `Product ${t.productid}`,
         type: 'outbound',
-        quantity: t.salecylinders || 0,
+        quantity: t.physicalstock || 0,
         userId: 'system',
         userName: 'System User',
         reason: 'Sale',
         transferredTo: 'Customer',
         department: 'N/A',
-        notes: 'Standard sale transaction',
+        notes: t.discrepancy_note || 'Standard transaction',
         status: 'completed',
-        createdat: t.reportdate || new Date().toISOString(),
+        createdat: t.transactiondate || new Date().toISOString(),
       })) || [];
+
       setTransactions(transData);
     } catch (err) {
       console.error('Fetch error:', err);
@@ -112,9 +127,30 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     fetchStockData();
+
+    // Set up real-time subscription for cylinderstockproductwise
+    const subscription = supabase
+      .channel('cylinderstockproductwise-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cylinderstockproductwise',
+        },
+        () => {
+          console.log('Detected change in cylinderstockproductwise, refetching data...');
+          fetchStockData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }, []);
 
-  const addStockItem = (item: Omit<StockItem, 'id' | 'lastUpdated' | 'dateAdded'>) => {
+  const addStockItem = async (item: Omit<StockItem, 'id' | 'lastUpdated' | 'dateAdded'>) => {
     const newItem: StockItem = {
       ...item,
       id: Math.floor(Math.random() * 1000000),
@@ -122,16 +158,81 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       lastUpdated: new Date().toISOString(),
     };
     setStockItems(prev => [...prev, newItem]);
+
+    // Insert into stocktransactions
+    const transactionData = {
+      productid: item.productId,
+      transactiondate: new Date().toISOString().split('T')[0],
+      stocktype: 'Cylinder',
+      openingbalance: item.quantity || 0,
+      purchase: 0,
+      sales: 0,
+      ownuse: 0,
+      physicalstock: item.quantity || 0,
+      discrepancy_note: null,
+      createdat: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('stocktransactions').insert(transactionData);
+    if (error) console.error('Error inserting stock transaction:', error.message);
+
+    await fetchStockData(); // Refresh data
   };
 
-  const updateStockItem = (id: number, updates: Partial<StockItem>) => {
-    setStockItems(prev => prev.map(item => 
-      item.id === id ? { ...item, ...updates, lastUpdated: new Date().toISOString() } : item
-    ));
+  const updateStockItem = async (id: number, updates: Partial<StockItem>, cylinderstockid?: number) => {
+    setStockItems(prev =>
+      prev.map(item =>
+        item.id === id ? { ...item, ...updates, lastUpdated: new Date().toISOString() } : item
+      )
+    );
+
+    if (cylinderstockid) {
+      // Update stocktransactions
+      const transactionData = {
+        productid: updates.productId || stockItems.find(item => item.id === id)?.productId,
+        transactiondate: new Date().toISOString().split('T')[0],
+        stocktype: 'Cylinder',
+        openingbalance: stockItems.find(item => item.id === id)?.quantity || 0,
+        purchase: 0,
+        sales: 0,
+        ownuse: 0,
+        physicalstock: updates.quantity || 0,
+        discrepancy_note: updates.discrepancyNote || null,
+        createdat: new Date().toISOString(),
+      };
+      const { error: transError } = await supabase.from('stocktransactions').insert(transactionData);
+      if (transError) console.error('Error inserting stock transaction:', transError.message);
+
+      // Update salesreports
+      const salesReportData = {
+        productid: updates.productId || stockItems.find(item => item.id === id)?.productId,
+        reportdate: new Date().toISOString().split('T')[0],
+        openingcylinders: stockItems.find(item => item.id === id)?.quantity || 0,
+        purchasecylinders: 0,
+        salecylinders: 0,
+        stocktransfercylinders: 0,
+        closingcylinders: updates.quantity || 0,
+        physicalcylinders: updates.quantity || 0,
+        createdat: new Date().toISOString(),
+      };
+      const { error: salesError } = await supabase.from('salesreports').insert(salesReportData);
+      if (salesError) console.error('Error inserting sales report:', salesError.message);
+    }
+
+    await fetchStockData(); // Refresh data
   };
 
-  const deleteStockItem = (id: number) => {
+  const deleteStockItem = async (id: number, cylinderstockid?: number) => {
     setStockItems(prev => prev.filter(item => item.id !== id));
+
+    if (cylinderstockid) {
+      const { error } = await supabase
+        .from('cylinderstockproductwise')
+        .delete()
+        .eq('cylinderstockid', cylinderstockid);
+      if (error) console.error('Error deleting cylinder stock:', error.message);
+    }
+
+    await fetchStockData(); // Refresh data
   };
 
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'timestamp' | 'createdat'>) => {
@@ -143,7 +244,6 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     setTransactions(prev => [...prev, newTransaction]);
 
-    // Sync with stocktransactions table
     const transactionData = {
       productid: transaction.productid,
       transactiondate: newTransaction.timestamp.split('T')[0],
@@ -158,16 +258,18 @@ export const StockProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     const { error } = await supabase.from('stocktransactions').insert(transactionData);
     if (error) console.error('Error inserting transaction:', error.message);
+
+    await fetchStockData(); // Refresh data
   };
 
   const getSalesSummary = (): SalesSummary => {
     const totalCylinders = stockItems.reduce((sum, item) => sum + item.quantity, 0);
     const totalSalesValue = transactions.reduce((sum, t) => sum + (t.quantity * 10), 0);
     const lowStockCylinders = stockItems.filter(item => item.quantity <= item.threshold).length;
-    const recentSales = transactions.filter(t => 
+    const recentSales = transactions.filter(t =>
       new Date(t.timestamp || '').getTime() > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).getTime()
     ).reduce((sum, t) => sum + t.quantity, 0);
-    
+
     const productSummary = Array.from(
       new Set(stockItems.map(item => item.name))
     ).map(name => ({

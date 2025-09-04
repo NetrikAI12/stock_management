@@ -19,7 +19,7 @@ import {
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
 
 const CylinderStockProductWise: React.FC = () => {
-  const { addStockItem } = useStock();
+  const { addStockItem, updateStockItem, deleteStockItem, stockItems } = useStock();
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     productid: '',
@@ -39,15 +39,49 @@ const CylinderStockProductWise: React.FC = () => {
   const [showGraph, setShowGraph] = useState(false);
   const [selectedField, setSelectedField] = useState('physicalstock');
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
+  const [products, setProducts] = useState<{ productid: number; productname: string }[]>([]);
 
   useEffect(() => {
     fetchProductData();
+    fetchProducts();
+
+    // Real-time subscription for cylinderstockproductwise
+    const subscription = supabase
+      .channel('cylinderstockproductwise-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cylinderstockproductwise',
+        },
+        () => {
+          console.log('Detected change in cylinderstockproductwise, refetching product data...');
+          fetchProductData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }, []);
 
   const fetchProductData = async () => {
     const { data, error } = await supabase
       .from('cylinderstockproductwise')
-      .select('*')
+      .select(`
+        cylinderstockid,
+        productid,
+        transactiondate,
+        openingbalance,
+        cylindersreceived,
+        cylindersdelivered,
+        cylinderssold,
+        cylindersconverted,
+        physicalstock,
+        products(productname)
+      `)
       .order('cylinderstockid', { ascending: true });
     if (error) {
       console.error('Error fetching product data:', error.message);
@@ -56,7 +90,19 @@ const CylinderStockProductWise: React.FC = () => {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('productid, productname')
+      .order('productid', { ascending: true });
+    if (error) {
+      console.error('Error fetching products:', error.message);
+    } else {
+      setProducts(data || []);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -80,8 +126,14 @@ const CylinderStockProductWise: React.FC = () => {
       return;
     }
 
+    const productCheck = products.find(p => p.productid === Number(formData.productid));
+    if (!productCheck) {
+      alert('Invalid Product ID. Please select a valid Product ID from the list.');
+      return;
+    }
+
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('cylinderstockproductwise')
         .insert({
           productid: Number(formData.productid),
@@ -92,7 +144,9 @@ const CylinderStockProductWise: React.FC = () => {
           cylinderssold: formData.cylinderssold,
           cylindersconverted: formData.cylindersconverted,
           physicalstock: formData.physicalstock,
-        });
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('Error inserting cylinder stock:', error.message);
@@ -100,15 +154,19 @@ const CylinderStockProductWise: React.FC = () => {
         return;
       }
 
-      addStockItem({
-        name: `Cylinder-${formData.productid}`,
+      await addStockItem({
+        id: data.cylinderstockid,
+        name: productCheck.productname,
         quantity: formData.physicalstock,
         unit: 'cylinders',
         specifications: `Transaction Date: ${formData.transactiondate}`,
         category: 'Cylinders',
         pricePerUnit: 0,
         addedBy: user?.username || 'unknown',
-        threshold: 10,
+        threshold: 5,
+        productId: Number(formData.productid),
+        dateAdded: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
       });
 
       setFormData({
@@ -122,10 +180,10 @@ const CylinderStockProductWise: React.FC = () => {
         physicalstock: 0,
       });
       setCurrentStep(1);
-      fetchProductData();
+      await fetchProductData(); // Refresh data after adding
       alert('Cylinder stock added successfully!');
     } catch (err) {
-      console.error('Unexpected error:', err);
+      console.error('Error adding cylinder stock:', err);
       alert('An unexpected error occurred while adding the cylinder stock');
     }
   };
@@ -157,9 +215,16 @@ const CylinderStockProductWise: React.FC = () => {
       return;
     }
 
+    const productCheck = products.find(p => p.productid === Number(formData.productid));
+    if (!productCheck) {
+      alert('Invalid Product ID. Please select a valid Product ID from the list.');
+      return;
+    }
+
     if (editingId) {
       try {
-        const { error } = await supabase
+        // Update cylinderstockproductwise table
+        const { error: updateError } = await supabase
           .from('cylinderstockproductwise')
           .update({
             productid: Number(formData.productid),
@@ -173,10 +238,37 @@ const CylinderStockProductWise: React.FC = () => {
           })
           .eq('cylinderstockid', editingId);
 
-        if (error) {
-          console.error('Error updating cylinder stock:', error.message);
-          alert(`Failed to update cylinder stock: ${error.message}`);
+        if (updateError) {
+          console.error('Error updating cylinder stock:', updateError.message);
+          alert(`Failed to update cylinder stock: ${updateError.message}`);
           return;
+        }
+
+        // Find the corresponding stock item
+        const stockItem = stockItems.find(item => item.productId === Number(formData.productid));
+        if (stockItem) {
+          await updateStockItem(stockItem.id, {
+            quantity: formData.physicalstock,
+            lastUpdated: new Date().toISOString(),
+            productId: Number(formData.productid),
+            name: productCheck.productname,
+          }, editingId);
+        } else {
+          // If no stock item exists, create a new one
+          await addStockItem({
+            id: editingId,
+            name: productCheck.productname,
+            quantity: formData.physicalstock,
+            unit: 'cylinders',
+            specifications: `Transaction Date: ${formData.transactiondate}`,
+            category: 'Cylinders',
+            pricePerUnit: 0,
+            addedBy: user?.username || 'unknown',
+            threshold: 5,
+            productId: Number(formData.productid),
+            dateAdded: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+          });
         }
 
         setEditingId(null);
@@ -191,11 +283,11 @@ const CylinderStockProductWise: React.FC = () => {
           physicalstock: 0,
         });
         setCurrentStep(1);
-        fetchProductData();
+        await fetchProductData(); // Refresh data after updating
         alert('Cylinder stock updated successfully!');
       } catch (err) {
-        console.error('Unexpected error:', err);
-        alert('An unexpected error occurred while updating the cylinder stock');
+        console.error('Error updating cylinder stock:', err);
+        alert(`An unexpected error occurred while updating the cylinder stock: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     }
   };
@@ -214,11 +306,12 @@ const CylinderStockProductWise: React.FC = () => {
           return;
         }
 
-        setProductData(productData.filter(item => item.cylinderstockid !== id));
+        await deleteStockItem(id, id);
+        await fetchProductData(); // Refresh data after deleting
         alert('Cylinder stock deleted successfully!');
       } catch (err) {
-        console.error('Unexpected error:', err);
-        alert('An unexpected error occurred while deleting the cylinder stock');
+        console.error('Error deleting cylinder stock:', err);
+        alert(`An unexpected error occurred while deleting the cylinder stock: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     }
   };
@@ -241,13 +334,13 @@ const CylinderStockProductWise: React.FC = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top' },
+      legend: { position: 'top' as const },
       title: {
         display: true,
         text: `${selectedField.charAt(0).toUpperCase() + selectedField.slice(1)} by Record ID`,
       },
       tooltip: {
-        mode: 'index',
+        mode: 'index' as const,
         intersect: false,
       },
     },
@@ -320,15 +413,20 @@ const CylinderStockProductWise: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Product ID *
                 </label>
-                <input
-                  type="number"
+                <select
                   name="productid"
                   value={formData.productid}
                   onChange={handleInputChange}
                   required
                   className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Enter Product ID"
-                />
+                >
+                  <option value="">Select a Product</option>
+                  {products.map((product) => (
+                    <option key={product.productid} value={product.productid}>
+                      {product.productname} (ID: {product.productid})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -520,7 +618,6 @@ const CylinderStockProductWise: React.FC = () => {
         </div>
       </form>
 
-      {/* Display Table */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Existing Cylinder Stock</h3>
         <div className="overflow-x-auto relative">
@@ -534,7 +631,7 @@ const CylinderStockProductWise: React.FC = () => {
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Transaction Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Opening Balance</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cylinders Received</th>
@@ -549,7 +646,7 @@ const CylinderStockProductWise: React.FC = () => {
               {productData.map((item) => (
                 <tr key={item.cylinderstockid}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{item.cylinderstockid}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{item.productid}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{item.products?.productname || item.productid}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{item.transactiondate}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{item.openingbalance}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{item.cylindersreceived}</td>
