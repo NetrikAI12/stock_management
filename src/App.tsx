@@ -1,3 +1,4 @@
+//updated code 
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { StockProvider, useStock } from './contexts/StockContext';
