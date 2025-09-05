@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Download, Plus } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Filter, Upload, Plus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import InventoryTable from './InventoryTable';
 import AddStockModal from '../Inventory/AddStockModal';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import Papa from 'papaparse';
-import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
 import { useStock } from '../../contexts/StockContext';
 
@@ -35,7 +34,7 @@ const InventoryView: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const { user } = useAuth();
   const { addNotification } = useNotifications();
-  const { stockItems, fetchStockData, getLowStockItems, loading, error } = useStock();
+  const { stockItems, fetchStockData, getLowStockItems, loading, error, addStockItem } = useStock();
   const [dateRange, setDateRange] = useState({
     start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
@@ -43,6 +42,7 @@ const InventoryView: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<number | 'all'>('all');
   const [products, setProducts] = useState<Product[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canAdd = user?.role === 'admin' || user?.role === 'staff';
 
@@ -73,7 +73,7 @@ const InventoryView: React.FC = () => {
     }
   };
 
-  const handleExport = (format: 'csv' | 'pdf') => {
+  const handleExportCSV = () => {
     const sortedItems = stockItems.filter((item: StockItem) => {
       const itemDate = new Date(item.lastUpdated).toISOString().split('T')[0];
       const isInDateRange = itemDate >= dateRange.start && itemDate <= dateRange.end;
@@ -81,35 +81,62 @@ const InventoryView: React.FC = () => {
       return isInDateRange && isProductMatch;
     }).sort((a, b) => a.name.localeCompare(b.name));
 
-    if (format === 'csv') {
-      const csvData = Papa.unparse(sortedItems.map(item => ({
-        name: item.name,
-        category: item.category,
-        quantity: item.quantity,
-        unit: item.unit,
-        threshold: item.threshold,
-        pricePerUnit: item.pricePerUnit,
-        lastUpdated: new Date(item.lastUpdated).toLocaleDateString(),
-      })));
-      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-      saveAs(blob, `inventory_${new Date().toISOString().split('T')[0]}.csv`);
-    } else if (format === 'pdf') {
-      const doc = new jsPDF();
-      doc.text('Inventory Report - ' + new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 10, 10);
-      doc.autoTable({
-        head: [['Name', 'Type', 'Quantity', 'Unit', 'Threshold', 'Unit Price', 'Last Updated']],
-        body: sortedItems.map(item => [
-          item.name,
-          item.category,
-          item.quantity,
-          item.unit,
-          item.threshold,
-          `$${item.pricePerUnit.toFixed(2)}`,
-          new Date(item.lastUpdated).toLocaleDateString(),
-        ]),
-      });
-      doc.save(`inventory_${new Date().toISOString().split('T')[0]}.pdf`);
-    }
+    const csvData = Papa.unparse(sortedItems.map(item => ({
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      unit: item.unit,
+      threshold: item.threshold,
+      pricePerUnit: item.pricePerUnit,
+      lastUpdated: new Date(item.lastUpdated).toLocaleDateString(),
+    })));
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, `inventory_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const importedItems = results.data.map((row: any) => ({
+          name: row.name,
+          category: row.category,
+          quantity: Number(row.quantity) || 0,
+          unit: row.unit || 'pcs',
+          threshold: Number(row.threshold) || 0,
+          pricePerUnit: Number(row.pricePerUnit) || 0,
+          lastUpdated: row.lastUpdated ? new Date(row.lastUpdated).toISOString() : new Date().toISOString(),
+          discrepancyNote: '',
+          productId: row.productId ? Number(row.productId) : undefined,
+        })) as Omit<StockItem, 'id'>[];
+
+        try {
+          await Promise.all(importedItems.map((item) => addStockItem(item)));
+          await fetchStockData();
+          addNotification({
+            type: 'stock',
+            message: 'CSV imported successfully',
+          });
+        } catch (err) {
+          console.error('Error importing CSV:', err);
+          addNotification({
+            type: 'stock',
+            message: 'Error importing CSV',
+          });
+        }
+      },
+      error: (err) => {
+        console.error('Papa Parse error:', err);
+        addNotification({
+          type: 'stock',
+          message: 'Error parsing CSV file',
+        });
+      },
+    });
   };
 
   const handleOpenAddModal = () => {
@@ -153,14 +180,21 @@ const InventoryView: React.FC = () => {
           Inventory Management
         </h1>
         <div className="flex items-center space-x-3">
-          <select
-            onChange={(e) => handleExport(e.target.value as 'csv' | 'pdf')}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+          <button
+            onClick={handleExportCSV}
+            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700"
           >
-            <option value="">Export</option>
-            <option value="csv">Export to CSV</option>
-            <option value="pdf">Export to PDF</option>
-          </select>
+            Export CSV
+          </button>
+          {canAdd && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import CSV
+            </button>
+          )}
           {canAdd && (
             <button onClick={handleOpenAddModal} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
               <Plus className="h-4 w-4 mr-2" />
@@ -257,6 +291,14 @@ const InventoryView: React.FC = () => {
         isOpen={isAddModalOpen} 
         onClose={handleCloseAddModal} 
         onAdd={fetchProductsAndStock} 
+      />
+
+      <input
+        type="file"
+        accept=".csv"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleImportCSV}
       />
     </div>
   );
