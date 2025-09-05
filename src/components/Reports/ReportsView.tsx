@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Calendar, FileText } from 'lucide-react';
+import { FileText, Upload } from 'lucide-react';
 import { useStock } from '../../contexts/StockContext';
 import { supabase } from '../../supabaseClient';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import { StockItem } from '../../types';
 
 interface Product {
@@ -118,7 +116,7 @@ const SalesReportsView: React.FC = () => {
           PhysicalCylinders: item.quantity,
           PhysicalUnits: salesReport.physicalunits || 0,
           DiscrepancyNote: salesReport.discrepancynote || '-',
-          CreatedAt: salesReport.createdat || item.dateAdded,
+          CreatedAt: salesReport.createdat || item.dateAdded || new Date().toISOString(),
         };
       });
 
@@ -195,7 +193,7 @@ const SalesReportsView: React.FC = () => {
     );
   };
 
-  const handleExport = (format: 'csv' | 'pdf') => {
+  const handleExportCSV = () => {
     if (!filteredReports.length) {
       alert('No data to export.');
       return;
@@ -204,46 +202,26 @@ const SalesReportsView: React.FC = () => {
     const sortedReports = filteredReports.sort((a, b) => a.ProductName.localeCompare(b.ProductName));
 
     try {
-      if (format === 'csv') {
-        const csvData = Papa.unparse(
-          sortedReports.map((report) => ({
-            Date: new Date(report.ReportDate).toLocaleDateString(),
-            Product: report.ProductName,
-            Opening: `${report.OpeningCylinders} cyl / ${report.OpeningUnits.toFixed(2)} units`,
-            Purchased: `${report.PurchaseCylinders} cyl / ${report.PurchaseUnits.toFixed(2)} units`,
-            Sold: `${report.SalesCylinders} cyl / ${report.SalesUnits.toFixed(2)} units`,
-            Transferred: `${report.StockTransferCylinders} cyl / ${report.StockTransferUnits.toFixed(2)} units`,
-            Closing: `${report.ClosingCylinders} cyl / ${report.ClosingUnits.toFixed(2)} units`,
-            Physical: `${report.PhysicalCylinders} cyl / ${report.PhysicalUnits.toFixed(2)} units`,
-            Discrepancy: report.DiscrepancyNote || '-',
-          })),
-          { header: true }
-        );
-        const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-        saveAs(blob, `sales_report_${new Date().toISOString().split('T')[0]}.csv`);
-      } else if (format === 'pdf') {
-        const doc = new jsPDF();
-        doc.text('Sales Report - ' + new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 10, 10);
-        (doc as any).autoTable({
-          head: [['Date', 'Product', 'Opening', 'Purchased', 'Sold', 'Transferred', 'Closing', 'Physical', 'Discrepancy']],
-          body: sortedReports.map((report) => [
-            new Date(report.ReportDate).toLocaleDateString(),
-            report.ProductName,
-            `${report.OpeningCylinders} cyl / ${report.OpeningUnits.toFixed(2)} units`,
-            `${report.PurchaseCylinders} cyl / ${report.PurchaseUnits.toFixed(2)} units`,
-            `${report.SalesCylinders} cyl / ${report.SalesUnits.toFixed(2)} units`,
-            `${report.StockTransferCylinders} cyl / ${report.StockTransferUnits.toFixed(2)} units`,
-            `${report.ClosingCylinders} cyl / ${report.ClosingUnits.toFixed(2)} units`,
-            `${report.PhysicalCylinders} cyl / ${report.PhysicalUnits.toFixed(2)} units`,
-            report.DiscrepancyNote || '-',
-          ]),
-        });
-        doc.save(`sales_report_${new Date().toISOString().split('T')[0]}.pdf`);
-      }
-      alert(`${format.toUpperCase()} exported successfully!`);
+      const csvData = Papa.unparse(
+        sortedReports.map((report) => ({
+          Date: new Date(report.ReportDate).toLocaleDateString(),
+          Product: report.ProductName,
+          Opening: `${report.OpeningCylinders} cyl / ${report.OpeningUnits.toFixed(2)} units`,
+          Purchased: `${report.PurchaseCylinders} cyl / ${report.PurchaseUnits.toFixed(2)} units`,
+          Sold: `${report.SalesCylinders} cyl / ${report.SalesUnits.toFixed(2)} units`,
+          Transferred: `${report.StockTransferCylinders} cyl / ${report.StockTransferUnits.toFixed(2)} units`,
+          Closing: `${report.ClosingCylinders} cyl / ${report.ClosingUnits.toFixed(2)} units`,
+          Physical: `${report.PhysicalCylinders} cyl / ${report.PhysicalUnits.toFixed(2)} units`,
+          Discrepancy: report.DiscrepancyNote || '-',
+        })),
+        { header: true }
+      );
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      saveAs(blob, `sales_report_${new Date().toISOString().split('T')[0]}.csv`);
+      alert('CSV exported successfully!');
     } catch (err) {
-      console.error(`Error exporting ${format}:`, err);
-      alert(`Failed to export ${format}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error('Error exporting CSV:', err);
+      alert(`Failed to export CSV: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -458,23 +436,18 @@ const SalesReportsView: React.FC = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sales Reports</h1>
         <div className="flex items-center space-x-3">
-          <select
-            onChange={(e) => {
-              const format = e.target.value as 'csv' | 'pdf';
-              if (format) handleExport(format);
-              e.target.value = ''; // Reset dropdown
-            }}
-            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          <button
+            onClick={handleExportCSV}
+            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700"
           >
-            <option value="">Export</option>
-            <option value="csv">Export CSV</option>
-            <option value="pdf">Export PDF</option>
-          </select>
+            <FileText className="h-4 w-4 mr-2" />
+            Export CSV
+          </button>
           <button
             onClick={triggerImport}
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            <FileText className="h-4 w-4 mr-2" />
+            <Upload className="h-4 w-4 mr-2" />
             Import CSV
           </button>
           <input
